@@ -1,2 +1,38 @@
+# ===== Project data & generated assets =====
 /db
 /generator
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ===== Virtual environments =====
+.venv/
+venv/
+env/
+
+# ===== Build / distribution =====
+build/
+dist/
+*.egg-info/
+.flet/
+
+# ===== Temp & test output files =====
+out.txt
+err.txt
+*.log
+test_*.xlsx
+
+# ===== IDE / Editor =====
+.vscode/
+.idea/
+
+# ===== OS junk =====
+.DS_Store
+Thumbs.db
+Desktop.ini
