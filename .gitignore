@@ -1,6 +1,7 @@
 # ===== Project data & generated assets =====
 /db
 /generator
+/data
 
 # ===== Python =====
 __pycache__/
@@ -27,6 +28,12 @@ out.txt
 err.txt
 *.log
 test_*.xlsx
+
+# ===== Scratch / debug artifacts =====
+.pycheck*.txt
+_nb_*.*
+_*_test.py
+_diag_*.*
 
 # ===== IDE / Editor =====
 .vscode/
