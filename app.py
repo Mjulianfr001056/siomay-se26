@@ -18,6 +18,7 @@ import tempfile
 import flet as ft
 
 from src import lampiran_spk
+from src import bapp_pml
 from src.validator import validate_excel_file, analyze_nulls
 from src.template_generator import generate_template
 from src.workflow import (
@@ -356,6 +357,8 @@ def main(page: ft.Page):
         doc = current_doc()
         if doc and doc.group == "Lampiran SPK":
             ok, errors, dfs = lampiran_spk.validate_input(path)
+        elif doc and doc.group == "BAPP Termin 1":
+            ok, errors, dfs = bapp_pml.validate_input(path)
         else:
             ok, errors, dfs = validate_excel_file(path)
         state["dfs"], state["errors"] = dfs, errors
@@ -416,6 +419,36 @@ def main(page: ft.Page):
             log(f"Data diverifikasi: {name} → VALID (format Lampiran SPK)", "OK")
             log(f"  Petugas terdaftar — PPL: {n_ppl} orang, "
                 f"PML: {n_pml} orang", "INFO")
+            update_nav()
+            page.update()
+            return
+
+        if doc and doc.group == "BAPP Termin 1":
+            # Ringkasan khusus format BAPP T1
+            df_input = dfs.get(bapp_pml.SHEET_NAME)
+            n_rows = len(df_input) if df_input is not None else 0
+            n_with_links = 0
+            if df_input is not None and bapp_pml.LINK_COLUMN in df_input.columns:
+                n_with_links = sum(
+                    1 for v in df_input[bapp_pml.LINK_COLUMN]
+                    if str(v).strip() and str(v).strip().lower() != "nan"
+                )
+            verify_area.controls = [
+                ft.Row(
+                    [
+                        stat_box("Total PML", str(n_rows), good=n_rows > 0),
+                        stat_box("Dengan Screenshot", str(n_with_links),
+                                 good=True),
+                        stat_box("Sheet", bapp_pml.SHEET_NAME, good=True),
+                    ],
+                    spacing=10,
+                ),
+            ]
+            verify_area.visible = True
+            data_file_chip.value = f"{name} \u2014 BAPP T1 PML"
+            data_file_chip.color = ft.Colors.GREY_900
+            log(f"Data diverifikasi: {name} \u2192 VALID "
+                f"({n_rows} baris, {n_with_links} dengan screenshot)", "OK")
             update_nav()
             page.update()
             return
@@ -777,12 +810,39 @@ def main(page: ft.Page):
                                   color=ft.Colors.BLUE_700,
                                   bgcolor=ft.Colors.BLUE_GREY_100)
     gen_status = ft.Text("", size=13, color=ft.Colors.BLUE_900, visible=False)
+    bapp_t1_link_warning = ft.Container(
+        visible=False,
+        content=ft.Row(
+            [
+                ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED,
+                        color=ft.Colors.AMBER_800, size=20),
+                ft.Text(
+                    "PENTING: Pastikan tautan Google Drive screenshot "
+                    "bukti dukung memiliki akses "
+                    "\"Anyone with the link\" "
+                    "(Siapa saja yang memiliki tautan). "
+                    "Jika tautan dikumpulkan dalam folder dari "
+                    "Google Forms (gForm), pastikan folder tersebut "
+                    "juga diatur \"Anyone with the link\".",
+                    size=12, color=ft.Colors.AMBER_900, expand=True,
+                ),
+            ],
+            spacing=8,
+            vertical_alignment=ft.CrossAxisAlignment.START,
+        ),
+        bgcolor=ft.Colors.AMBER_50,
+        border=ft.Border.all(1, ft.Colors.AMBER_300),
+        border_radius=8,
+        padding=12,
+    )
     btn_generate = None
 
     def refresh_step4():
         doc = current_doc()
         if doc is None or not state["data_ok"] or not state["template_path"]:
             return
+        # Tampilkan peringatan akses link hanya untuk BAPP T1 (PML/PPL)
+        bapp_t1_link_warning.visible = (doc.group == "BAPP Termin 1")
         if doc.group == "Lampiran SPK" and doc.kind:
             try:
                 ctx = lampiran_spk.prepare_context(state["dfs"])
@@ -791,6 +851,10 @@ def main(page: ft.Page):
                 extra = f" ({n_rows} petugas {doc.kind.upper()})"
             except Exception:
                 extra = " (format Lampiran SPK)"
+        elif doc.group == "BAPP Termin 1":
+            df_input = state["dfs"].get(bapp_pml.SHEET_NAME)
+            n_rows = len(df_input) if df_input is not None else 0
+            extra = f" ({n_rows} petugas PML)"
         else:
             n_rows = len(state["dfs"].get("data_petugas", []))
             extra = f" ({n_rows} baris)"
@@ -863,6 +927,53 @@ def main(page: ft.Page):
             update_nav()
             page.update()
 
+    async def generate_bapp_pml():
+        """Populasi BAPP T1 PML — screenshot grid bukti dukung."""
+        _gen_ui_start()
+        gen_status.value = "Menyiapkan populasi dokumen\u2026"
+        page.update()
+
+        out_dir = tempfile.mkdtemp(prefix="gen_bapp_pml_")
+        log("=" * 46, "STEP")
+        log("MEMULAI GENERATE \u2014 BAPP T1 PML", "STEP")
+        log(f"Template : {os.path.basename(state['template_path'])}", "INFO")
+        log(f"Data     : {os.path.basename(state['file_path'])}", "INFO")
+
+        try:
+            for ev in bapp_pml.iter_generate(
+                    state["dfs"], state["template_path"], out_dir):
+                t = ev.get("t")
+                if t == "log":
+                    log(ev["msg"], ev.get("level", "INFO"))
+                elif t == "file":
+                    state["generated_files"].append(ev["path"])
+                elif t == "progress":
+                    total = max(ev.get("total", 1), 1)
+                    gen_progress.max = total
+                    gen_progress.value = ev.get("done", 0) / total
+                    gen_status.value = (
+                        f"Mengisi dokumen {ev.get('done', 0)} dari {total}\u2026")
+                    page.update()
+                    await asyncio.sleep(0)
+                elif t == "done":
+                    state["generated_files"] = list(ev.get("generated", []))
+
+            n_ok = len(state["generated_files"])
+            state["generation_done"] = n_ok > 0
+            gen_progress.value = 1
+            gen_status.value = f"Selesai: {n_ok} dokumen berhasil dibuat."
+            log(f"GENERATE SELESAI \u2014 {n_ok} dokumen.",
+                "OK" if n_ok else "ERROR")
+            log(f"Folder output: {out_dir}", "INFO")
+        except Exception as ex:
+            gen_status.value = f"Generasi gagal: {ex}"
+            log(f"Generasi gagal: {ex}", "ERROR")
+        finally:
+            state["busy"] = False
+            btn_generate.disabled = False
+            update_nav()
+            page.update()
+
     async def run_generation(e=None):
         if state["busy"]:
             return
@@ -872,6 +983,11 @@ def main(page: ft.Page):
         if doc and doc.group == "Lampiran SPK":
             await generate_lampiran_spk(
                 doc, tempfile.mkdtemp(prefix="gen_spk_"))
+            return
+
+        # ── Jalur khusus: grup BAPP Termin 1 ────────────────
+        if doc and doc.group == "BAPP Termin 1":
+            await generate_bapp_pml()
             return
 
         df = state["dfs"].get("data_petugas")
@@ -964,6 +1080,7 @@ def main(page: ft.Page):
                 border=ft.Border.all(1, ft.Colors.BLUE_GREY_100),
                 border_radius=8, padding=12,
             ),
+            bapp_t1_link_warning,
             btn_generate,
             ft.Container(height=6),
             gen_progress,
@@ -1063,6 +1180,7 @@ def main(page: ft.Page):
         gen_progress.visible = False
         gen_progress.value = 0
         gen_status.visible = False
+        bapp_t1_link_warning.visible = False
         gen_summary_text.value = "Lengkapi langkah sebelumnya."
         save_result_area.visible = False
         save_progress.visible = False

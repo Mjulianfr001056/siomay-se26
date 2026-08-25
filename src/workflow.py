@@ -12,6 +12,8 @@ INPUT_DIR = os.path.join(PROJECT_ROOT, "input")
 
 # Format data masukan untuk grup Lampiran SPK
 INPUT_LAMPIRAN_SPK = os.path.join(INPUT_DIR, "00_input_lampiran_spk.xlsx")
+INPUT_BAPP_T1_PML = os.path.join(INPUT_DIR, "01_input_bapp_t1_pml.xlsx")
+INPUT_BAPP_T1_PPL = os.path.join(INPUT_DIR, "01_input_bapp_t1_ppl.xlsx")
 
 
 class DocumentType:
@@ -44,7 +46,14 @@ class DocumentType:
     @property
     def input_template_path(self):
         """Path template Excel input bawaan untuk grup ini, atau None."""
-        path = INPUT_LAMPIRAN_SPK if self.group == "Lampiran SPK" else None
+        if self.group == "Lampiran SPK":
+            path = INPUT_LAMPIRAN_SPK
+        elif self.id == "bapp_pml_t1":
+            path = INPUT_BAPP_T1_PML
+        elif self.id == "bapp_ppl_t1":
+            path = INPUT_BAPP_T1_PPL
+        else:
+            path = None
         return path if path and os.path.isfile(path) else None
 
 
@@ -68,9 +77,8 @@ DOCUMENT_TYPES = [
     ),
     DocumentType(
         "bapp_pml_t1", "BAPP PML Termin 1", "BAPP Termin 1",
-        "BAPP_PML_Termin1", "",
+        "BAPP_PML_Termin1", "01. Template BAPP T1 PML.docx",
         "Berita Acara Pemeriksaan Hasil Pekerjaan untuk PML",
-        implemented=False,
     ),
     DocumentType(
         "spp_ppl", "SPP PPL", "SPP",
