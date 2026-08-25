@@ -63,13 +63,13 @@ DOCUMENT_TYPES = [
     DocumentType(
         "bapp_ppl_t1", "BAPP PPL Termin 1", "BAPP Termin 1",
         "BAPP_PPL_Termin1", "", 
-        "Berita Acara Pembayaran Pertama untuk PPL",
+        "Berita Acara Pemeriksaan Hasil Pekerjaan untuk PPL",
         implemented=False,
     ),
     DocumentType(
         "bapp_pml_t1", "BAPP PML Termin 1", "BAPP Termin 1",
         "BAPP_PML_Termin1", "",
-        "Berita Acara Pembayaran Pertama untuk PML",
+        "Berita Acara Pemeriksaan Hasil Pekerjaan untuk PML",
         implemented=False,
     ),
     DocumentType(
@@ -87,13 +87,13 @@ DOCUMENT_TYPES = [
     DocumentType(
         "bapp_ppl_t2", "BAPP PPL Termin 2", "BAPP Termin 2",
         "BAPP_PPL_Termin2", "",
-        "Berita Acara Pembayaran Kedua untuk PPL",
+        "Berita Acara Pemeriksaan Hasil Pekerjaan untuk PPL",
         implemented=False,
     ),
     DocumentType(
         "bapp_pml_t2", "BAPP PML Termin 2", "BAPP Termin 2",
         "BAPP_PML_Termin2", "",
-        "Berita Acara Pembayaran Kedua untuk PML",
+        "Berita Acara Pemeriksaan Hasil Pekerjaan untuk PML",
         implemented=False,
     ),
     DocumentType(
