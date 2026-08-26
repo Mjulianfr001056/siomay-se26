@@ -132,6 +132,7 @@ def main(page: ft.Page):
     # Step tracker (atas, ala balenaEtcher)                               #
     # ------------------------------------------------------------------ #
     CIRCLE = 50
+    LABEL_WIDTH = CIRCLE + 40
 
     def build_circle(index: int):
         st = state["step"]
@@ -172,9 +173,25 @@ def main(page: ft.Page):
             color, weight = ft.Colors.GREY_500, ft.FontWeight.W_400
         clickable = index <= state["max_step"]
         return ft.Container(
-            content=ft.Text(STEP_DEFS[index]["label"], size=12, color=color,
-                            weight=weight, text_align=ft.TextAlign.CENTER),
-            width=CIRCLE + 40,
+            # Gunakan sel selebar ikon agar posisi tengah setiap label
+            # persis sama dengan pusat lingkaran. Teks dibuat lebih lebar
+            # dan ditumpangkan simetris supaya label panjang tetap terbaca.
+            content=ft.Stack(
+                [
+                    ft.Container(
+                        content=ft.Text(
+                            STEP_DEFS[index]["label"], size=12, color=color,
+                            weight=weight, text_align=ft.TextAlign.CENTER,
+                        ),
+                        width=LABEL_WIDTH,
+                        alignment=ft.Alignment.CENTER,
+                        left=-(LABEL_WIDTH - CIRCLE) // 2,
+                    ),
+                ],
+                clip_behavior=ft.ClipBehavior.NONE,
+            ),
+            width=CIRCLE,
+            height=36,
             on_click=(lambda e, i=index: goto(i)) if clickable else None,
             tooltip=None if clickable else "Selesaikan langkah sebelumnya dahulu",
         )
