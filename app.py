@@ -20,6 +20,8 @@ import flet as ft
 from src import lampiran_spk
 from src import bapp_pml
 from src import bapp_ppl
+from src import bapp_pml_t2
+from src import bapp_ppl_t2
 from src.validator import validate_excel_file, analyze_nulls
 from src.template_generator import generate_template
 from src.workflow import (
@@ -361,6 +363,9 @@ def main(page: ft.Page):
         elif doc and doc.group == "BAPP Termin 1":
             bapp_mod = bapp_ppl if doc.kind == "ppl" else bapp_pml
             ok, errors, dfs = bapp_mod.validate_input(path)
+        elif doc and doc.group == "BAPP Termin 2":
+            bapp_mod = bapp_ppl_t2 if doc.kind == "ppl" else bapp_pml_t2
+            ok, errors, dfs = bapp_mod.validate_input(path)
         else:
             ok, errors, dfs = validate_excel_file(path)
         state["dfs"], state["errors"] = dfs, errors
@@ -450,6 +455,38 @@ def main(page: ft.Page):
             ]
             verify_area.visible = True
             data_file_chip.value = f"{name} \u2014 BAPP T1 {role_label}"
+            data_file_chip.color = ft.Colors.GREY_900
+            log(f"Data diverifikasi: {name} \u2192 VALID "
+                f"({n_rows} baris, {n_with_links} dengan screenshot)", "OK")
+            update_nav()
+            page.update()
+            return
+
+        if doc and doc.group == "BAPP Termin 2":
+            # Ringkasan khusus format BAPP T2
+            bapp_mod = bapp_ppl_t2 if doc.kind == "ppl" else bapp_pml_t2
+            df_input = dfs.get(bapp_mod.SHEET_NAME)
+            n_rows = len(df_input) if df_input is not None else 0
+            n_with_links = 0
+            if df_input is not None and bapp_mod.LINK_COLUMN in df_input.columns:
+                n_with_links = sum(
+                    1 for v in df_input[bapp_mod.LINK_COLUMN]
+                    if str(v).strip() and str(v).strip().lower() != "nan"
+                )
+            role_label = "PPL" if doc.kind == "ppl" else "PML"
+            verify_area.controls = [
+                ft.Row(
+                    [
+                        stat_box(f"Total {role_label}", str(n_rows), good=n_rows > 0),
+                        stat_box("Dengan Screenshot", str(n_with_links),
+                                 good=True),
+                        stat_box("Sheet", bapp_mod.SHEET_NAME, good=True),
+                    ],
+                    spacing=10,
+                ),
+            ]
+            verify_area.visible = True
+            data_file_chip.value = f"{name} \u2014 BAPP T2 {role_label}"
             data_file_chip.color = ft.Colors.GREY_900
             log(f"Data diverifikasi: {name} \u2192 VALID "
                 f"({n_rows} baris, {n_with_links} dengan screenshot)", "OK")
@@ -845,8 +882,8 @@ def main(page: ft.Page):
         doc = current_doc()
         if doc is None or not state["data_ok"] or not state["template_path"]:
             return
-        # Tampilkan peringatan akses link hanya untuk BAPP T1 (PML/PPL)
-        bapp_t1_link_warning.visible = (doc.group == "BAPP Termin 1")
+        # Tampilkan peringatan akses link hanya untuk BAPP T1/T2 (PML/PPL)
+        bapp_t1_link_warning.visible = (doc.group in ("BAPP Termin 1", "BAPP Termin 2"))
         if doc.group == "Lampiran SPK" and doc.kind:
             try:
                 ctx = lampiran_spk.prepare_context(state["dfs"])
@@ -857,6 +894,10 @@ def main(page: ft.Page):
                 extra = " (format Lampiran SPK)"
         elif doc.group == "BAPP Termin 1":
             df_input = state["dfs"].get(bapp_pml.SHEET_NAME)
+            n_rows = len(df_input) if df_input is not None else 0
+            extra = f" ({n_rows} petugas PML)"
+        elif doc.group == "BAPP Termin 2":
+            df_input = state["dfs"].get(bapp_pml_t2.SHEET_NAME)
             n_rows = len(df_input) if df_input is not None else 0
             extra = f" ({n_rows} petugas PML)"
         else:
@@ -1025,6 +1066,100 @@ def main(page: ft.Page):
             update_nav()
             page.update()
 
+    async def generate_bapp_pml_t2():
+        """Populasi BAPP T2 PML — screenshot grid bukti dukung."""
+        _gen_ui_start()
+        gen_status.value = "Menyiapkan populasi dokumen\u2026"
+        page.update()
+
+        out_dir = tempfile.mkdtemp(prefix="gen_bapp_pml_t2_")
+        log("=" * 46, "STEP")
+        log("MEMULAI GENERATE \u2014 BAPP T2 PML", "STEP")
+        log(f"Template : {os.path.basename(state['template_path'])}", "INFO")
+        log(f"Data     : {os.path.basename(state['file_path'])}", "INFO")
+
+        try:
+            for ev in bapp_pml_t2.iter_generate(
+                    state["dfs"], state["template_path"], out_dir):
+                t = ev.get("t")
+                if t == "log":
+                    log(ev["msg"], ev.get("level", "INFO"))
+                elif t == "file":
+                    state["generated_files"].append(ev["path"])
+                elif t == "progress":
+                    total = max(ev.get("total", 1), 1)
+                    gen_progress.max = total
+                    gen_progress.value = ev.get("done", 0) / total
+                    gen_status.value = (
+                        f"Mengisi dokumen {ev.get('done', 0)} dari {total}\u2026")
+                    page.update()
+                    await asyncio.sleep(0)
+                elif t == "done":
+                    state["generated_files"] = list(ev.get("generated", []))
+
+            n_ok = len(state["generated_files"])
+            state["generation_done"] = n_ok > 0
+            gen_progress.value = 1
+            gen_status.value = f"Selesai: {n_ok} dokumen berhasil dibuat."
+            log(f"GENERATE SELESAI \u2014 {n_ok} dokumen.",
+                "OK" if n_ok else "ERROR")
+            log(f"Folder output: {out_dir}", "INFO")
+        except Exception as ex:
+            gen_status.value = f"Generasi gagal: {ex}"
+            log(f"Generasi gagal: {ex}", "ERROR")
+        finally:
+            state["busy"] = False
+            btn_generate.disabled = False
+            update_nav()
+            page.update()
+
+    async def generate_bapp_ppl_t2():
+        """Populasi BAPP T2 PPL — screenshot grid bukti dukung."""
+        _gen_ui_start()
+        gen_status.value = "Menyiapkan populasi dokumen\u2026"
+        page.update()
+
+        out_dir = tempfile.mkdtemp(prefix="gen_bapp_ppl_t2_")
+        log("=" * 46, "STEP")
+        log("MEMULAI GENERATE \u2014 BAPP T2 PPL", "STEP")
+        log(f"Template : {os.path.basename(state['template_path'])}", "INFO")
+        log(f"Data     : {os.path.basename(state['file_path'])}", "INFO")
+
+        try:
+            for ev in bapp_ppl_t2.iter_generate(
+                    state["dfs"], state["template_path"], out_dir):
+                t = ev.get("t")
+                if t == "log":
+                    log(ev["msg"], ev.get("level", "INFO"))
+                elif t == "file":
+                    state["generated_files"].append(ev["path"])
+                elif t == "progress":
+                    total = max(ev.get("total", 1), 1)
+                    gen_progress.max = total
+                    gen_progress.value = ev.get("done", 0) / total
+                    gen_status.value = (
+                        f"Mengisi dokumen {ev.get('done', 0)} dari {total}\u2026")
+                    page.update()
+                    await asyncio.sleep(0)
+                elif t == "done":
+                    state["generated_files"] = list(ev.get("generated", []))
+
+            n_ok = len(state["generated_files"])
+            state["generation_done"] = n_ok > 0
+            gen_progress.value = 1
+            gen_status.value = f"Selesai: {n_ok} dokumen berhasil dibuat."
+            log(f"GENERATE SELESAI \u2014 {n_ok} dokumen.",
+                "OK" if n_ok else "ERROR")
+            log(f"Folder output: {out_dir}", "INFO")
+        except Exception as ex:
+            gen_status.value = f"Generasi gagal: {ex}"
+            log(f"Generasi gagal: {ex}", "ERROR")
+        finally:
+            state["busy"] = False
+            btn_generate.disabled = False
+            update_nav()
+            page.update()
+
     async def run_generation(e=None):
         if state["busy"]:
             return
@@ -1042,6 +1177,14 @@ def main(page: ft.Page):
                 await generate_bapp_ppl()
             else:
                 await generate_bapp_pml()
+            return
+
+        # ── Jalur khusus: grup BAPP Termin 2 ────────────────
+        if doc and doc.group == "BAPP Termin 2":
+            if doc.kind == "ppl":
+                await generate_bapp_ppl_t2()
+            else:
+                await generate_bapp_pml_t2()
             return
 
         df = state["dfs"].get("data_petugas")

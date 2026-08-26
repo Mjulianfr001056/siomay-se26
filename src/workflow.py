@@ -14,6 +14,8 @@ INPUT_DIR = os.path.join(PROJECT_ROOT, "input")
 INPUT_LAMPIRAN_SPK = os.path.join(INPUT_DIR, "00_input_lampiran_spk.xlsx")
 INPUT_BAPP_T1_PML = os.path.join(INPUT_DIR, "01_input_bapp_t1_pml.xlsx")
 INPUT_BAPP_T1_PPL = os.path.join(INPUT_DIR, "01_input_bapp_t1_ppl.xlsx")
+INPUT_BAPP_T2_PML = os.path.join(INPUT_DIR, "03_input_bapp_pml_t2.xlsx")
+INPUT_BAPP_T2_PPL = os.path.join(INPUT_DIR, "03_input_bapp_ppl_t2.xlsx")
 
 
 class DocumentType:
@@ -52,6 +54,10 @@ class DocumentType:
             path = INPUT_BAPP_T1_PML
         elif self.id == "bapp_ppl_t1":
             path = INPUT_BAPP_T1_PPL
+        elif self.id == "bapp_pml_t2":
+            path = INPUT_BAPP_T2_PML
+        elif self.id == "bapp_ppl_t2":
+            path = INPUT_BAPP_T2_PPL
         else:
             path = None
         return path if path and os.path.isfile(path) else None
@@ -93,15 +99,13 @@ DOCUMENT_TYPES = [
     ),
     DocumentType(
         "bapp_ppl_t2", "BAPP PPL Termin 2", "BAPP Termin 2",
-        "BAPP_PPL_Termin2", "",
-        "Berita Acara Pemeriksaan Hasil Pekerjaan untuk PPL",
-        implemented=False,
+        "BAPP_PPL_Termin2", "03. Template BAPP T2 PPL .docx",
+        "Berita Acara Pemeriksaan Hasil Pekerjaan untuk PPL (Termin II)",
     ),
     DocumentType(
         "bapp_pml_t2", "BAPP PML Termin 2", "BAPP Termin 2",
-        "BAPP_PML_Termin2", "",
-        "Berita Acara Pemeriksaan Hasil Pekerjaan untuk PML",
-        implemented=False,
+        "BAPP_PML_Termin2", "03. Template BAPP T2 PML.docx",
+        "Berita Acara Pemeriksaan Hasil Pekerjaan untuk PML (Termin II)",
     ),
     DocumentType(
         "bast_ppl", "BAST PPL", "BAST",
