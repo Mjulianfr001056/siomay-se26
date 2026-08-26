@@ -37,9 +37,9 @@ class DocumentType:
     @property
     def kind(self):
         """PPL/PML varian dari dokumen: 'ppl' | 'pml' | None."""
-        if self.id.endswith("_ppl"):
+        if "_ppl" in self.id:
             return "ppl"
-        if self.id.endswith("_pml"):
+        if "_pml" in self.id:
             return "pml"
         return None
 
@@ -71,9 +71,8 @@ DOCUMENT_TYPES = [
     # ── Grup berikutnya: belum diimplementasikan ──────────────────────
     DocumentType(
         "bapp_ppl_t1", "BAPP PPL Termin 1", "BAPP Termin 1",
-        "BAPP_PPL_Termin1", "", 
+        "BAPP_PPL_Termin1", "01. Template BAPP T1 PPL.docx",
         "Berita Acara Pemeriksaan Hasil Pekerjaan untuk PPL",
-        implemented=False,
     ),
     DocumentType(
         "bapp_pml_t1", "BAPP PML Termin 1", "BAPP Termin 1",
