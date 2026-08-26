@@ -60,12 +60,12 @@ class DocumentType:
 DOCUMENT_TYPES = [
     DocumentType(
         "lampiran_spk_ppl", "Lampiran SPK PPL", "Lampiran SPK",
-        "Lampiran_SPK_PPL", "00_template_lampiran_spk_ppl.docx",
+        "Lampiran_SPK_PPL", "00. Template Lampiran SPK PPL.docx",
         "Lampiran kontrak kerja untuk Petugas Lapangan (PPL)",
     ),
     DocumentType(
         "lampiran_spk_pml", "Lampiran SPK PML", "Lampiran SPK",
-        "Lampiran_SPK_PML", "00_template_lampiran_spk_pml.docx",
+        "Lampiran_SPK_PML", "00. Template Lampiran SPK PML.docx",
         "Lampiran kontrak kerja untuk Petugas Pemeriksa Lapangan (PML)",
     ),
     # ── Grup berikutnya: belum diimplementasikan ──────────────────────
