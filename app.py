@@ -22,6 +22,7 @@ from src import bapp_pml
 from src import bapp_ppl
 from src import bapp_pml_t2
 from src import bapp_ppl_t2
+from src import spp
 from src.validator import validate_excel_file, analyze_nulls
 from src.template_generator import generate_template
 from src.workflow import (
@@ -65,7 +66,7 @@ STEP_DEFS = [
 DOC_ICONS = {
     "Lampiran SPK": ft.Icons.DESCRIPTION_ROUNDED,
     "BAPP Termin 1": ft.Icons.FACT_CHECK_OUTLINED,
-    "SPP": ft.Icons.REQUEST_QUOTE_OUTLINED,
+    "SPP": ft.Icons.ASSIGNMENT_RETURNED_ROUNDED,
     "BAPP Termin 2": ft.Icons.FACT_CHECK_OUTLINED,
     "BAST": ft.Icons.HANDSHAKE_OUTLINED,
 }
@@ -366,6 +367,8 @@ def main(page: ft.Page):
         elif doc and doc.group == "BAPP Termin 2":
             bapp_mod = bapp_ppl_t2 if doc.kind == "ppl" else bapp_pml_t2
             ok, errors, dfs = bapp_mod.validate_input(path)
+        elif doc and doc.group == "SPP":
+            ok, errors, dfs = spp.validate_input(path)
         else:
             ok, errors, dfs = validate_excel_file(path)
         state["dfs"], state["errors"] = dfs, errors
@@ -490,6 +493,47 @@ def main(page: ft.Page):
             data_file_chip.color = ft.Colors.GREY_900
             log(f"Data diverifikasi: {name} \u2192 VALID "
                 f"({n_rows} baris, {n_with_links} dengan screenshot)", "OK")
+            update_nav()
+            page.update()
+            return
+
+        if doc and doc.group == "SPP":
+            # Ringkasan khusus format SPP
+            df_mitra = dfs.get(spp.SHEET_DATA_MITRA)
+            n_ppl = 0
+            n_pml = 0
+            if df_mitra is not None and not df_mitra.empty:
+                n_ppl = sum(
+                    1 for v in df_mitra[spp.COL_JABATAN]
+                    if str(v).strip().upper() == "PPL"
+                )
+                n_pml = sum(
+                    1 for v in df_mitra[spp.COL_JABATAN]
+                    if str(v).strip().upper() == "PML"
+                )
+            role_label = "PPL" if doc.kind == "ppl" else "PML"
+            n_target = n_ppl if doc.kind == "ppl" else n_pml
+            df_alok = dfs.get(spp.SHEET_ALOKASI)
+            verify_area.controls = [
+                ft.Row(
+                    [
+                        stat_box(f"Total {role_label}", str(n_target),
+                                 good=n_target > 0),
+                        stat_box("Sheet data_mitra",
+                                 str(len(df_mitra)) if df_mitra is not None else "0",
+                                 good=df_mitra is not None and len(df_mitra) > 0),
+                        stat_box("Sheet alokasi_usaha",
+                                 str(len(df_alok)) if df_alok is not None else "0",
+                                 good=True),
+                    ],
+                    spacing=10,
+                ),
+            ]
+            verify_area.visible = True
+            data_file_chip.value = f"{name} \u2014 SPP {role_label}"
+            data_file_chip.color = ft.Colors.GREY_900
+            log(f"Data diverifikasi: {name} \u2192 VALID "
+                f"(PPL: {n_ppl}, PML: {n_pml})", "OK")
             update_nav()
             page.update()
             return
@@ -900,6 +944,10 @@ def main(page: ft.Page):
             df_input = state["dfs"].get(bapp_pml_t2.SHEET_NAME)
             n_rows = len(df_input) if df_input is not None else 0
             extra = f" ({n_rows} petugas PML)"
+        elif doc.group == "SPP":
+            df_mitra = state["dfs"].get(spp.SHEET_DATA_MITRA)
+            n_total = len(df_mitra) if df_mitra is not None else 0
+            extra = f" ({n_total} petugas total)"
         else:
             n_rows = len(state["dfs"].get("data_petugas", []))
             extra = f" ({n_rows} baris)"
@@ -1160,6 +1208,55 @@ def main(page: ft.Page):
             update_nav()
             page.update()
 
+    async def generate_spp():
+        """Populasi SPP (PPL & PML) -- Surat Pernyataan Penyelesaian."""
+        _gen_ui_start()
+        gen_status.value = "Menyiapkan populasi dokumen\u2026"
+        page.update()
+
+        doc = current_doc()
+        kind = doc.kind  # 'ppl' | 'pml'
+        out_dir = tempfile.mkdtemp(prefix="gen_spp_")
+        log("=" * 46, "STEP")
+        log(f"MEMULAI GENERATE \u2014 SPP {kind.upper()}", "STEP")
+        log(f"Template : {os.path.basename(state['template_path'])}", "INFO")
+        log(f"Data     : {os.path.basename(state['file_path'])}", "INFO")
+
+        try:
+            for ev in spp.iter_generate(
+                    kind, state["dfs"], state["template_path"], out_dir):
+                t = ev.get("t")
+                if t == "log":
+                    log(ev["msg"], ev.get("level", "INFO"))
+                elif t == "file":
+                    state["generated_files"].append(ev["path"])
+                elif t == "progress":
+                    total = max(ev.get("total", 1), 1)
+                    gen_progress.max = total
+                    gen_progress.value = ev.get("done", 0) / total
+                    gen_status.value = (
+                        f"Mengisi dokumen {ev.get('done', 0)} dari {total}\u2026")
+                    page.update()
+                    await asyncio.sleep(0)
+                elif t == "done":
+                    state["generated_files"] = list(ev.get("generated", []))
+
+            n_ok = len(state["generated_files"])
+            state["generation_done"] = n_ok > 0
+            gen_progress.value = 1
+            gen_status.value = f"Selesai: {n_ok} dokumen berhasil dibuat."
+            log(f"GENERATE SELESAI \u2014 {n_ok} dokumen.",
+                "OK" if n_ok else "ERROR")
+            log(f"Folder output: {out_dir}", "INFO")
+        except Exception as ex:
+            gen_status.value = f"Generasi gagal: {ex}"
+            log(f"Generasi gagal: {ex}", "ERROR")
+        finally:
+            state["busy"] = False
+            btn_generate.disabled = False
+            update_nav()
+            page.update()
+
     async def run_generation(e=None):
         if state["busy"]:
             return
@@ -1185,6 +1282,11 @@ def main(page: ft.Page):
                 await generate_bapp_ppl_t2()
             else:
                 await generate_bapp_pml_t2()
+            return
+
+        # ── Jalur khusus: grup SPP ────────────────
+        if doc and doc.group == "SPP":
+            await generate_spp()
             return
 
         df = state["dfs"].get("data_petugas")

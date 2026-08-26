@@ -16,6 +16,7 @@ INPUT_BAPP_T1_PML = os.path.join(INPUT_DIR, "01_input_bapp_t1_pml.xlsx")
 INPUT_BAPP_T1_PPL = os.path.join(INPUT_DIR, "01_input_bapp_t1_ppl.xlsx")
 INPUT_BAPP_T2_PML = os.path.join(INPUT_DIR, "03_input_bapp_pml_t2.xlsx")
 INPUT_BAPP_T2_PPL = os.path.join(INPUT_DIR, "03_input_bapp_ppl_t2.xlsx")
+INPUT_SPP = os.path.join(INPUT_DIR, "02_input_spp.xlsx")
 
 
 class DocumentType:
@@ -58,6 +59,8 @@ class DocumentType:
             path = INPUT_BAPP_T2_PML
         elif self.id == "bapp_ppl_t2":
             path = INPUT_BAPP_T2_PPL
+        elif self.id in ("spp_ppl", "spp_pml"):
+            path = INPUT_SPP
         else:
             path = None
         return path if path and os.path.isfile(path) else None
@@ -87,15 +90,13 @@ DOCUMENT_TYPES = [
     ),
     DocumentType(
         "spp_ppl", "SPP PPL", "SPP",
-        "SPP_PPL", "",
-        "Surat Permintaan Pembayaran untuk PPL",
-        implemented=False,
+        "SPP_PPL", "02. Template SPP PPL.docx",
+        "Surat Pernyataan Penyelesaian untuk Petugas Lapangan (PPL)",
     ),
     DocumentType(
         "spp_pml", "SPP PML", "SPP",
-        "SPP_PML", "",
-        "Surat Permintaan Pembayaran untuk PML",
-        implemented=False,
+        "SPP_PML", "02. Template SPP PML.docx",
+        "Surat Pernyataan Penyelesaian untuk Pemeriksa Lapangan (PML)",
     ),
     DocumentType(
         "bapp_ppl_t2", "BAPP PPL Termin 2", "BAPP Termin 2",
