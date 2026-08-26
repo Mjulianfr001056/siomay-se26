@@ -17,6 +17,7 @@ INPUT_BAPP_T1_PPL = os.path.join(INPUT_DIR, "01_input_bapp_t1_ppl.xlsx")
 INPUT_BAPP_T2_PML = os.path.join(INPUT_DIR, "03_input_bapp_pml_t2.xlsx")
 INPUT_BAPP_T2_PPL = os.path.join(INPUT_DIR, "03_input_bapp_ppl_t2.xlsx")
 INPUT_SPP = os.path.join(INPUT_DIR, "02_input_spp.xlsx")
+INPUT_BAST = os.path.join(INPUT_DIR, "04_input_bast.xlsx")
 
 
 class DocumentType:
@@ -61,6 +62,8 @@ class DocumentType:
             path = INPUT_BAPP_T2_PPL
         elif self.id in ("spp_ppl", "spp_pml"):
             path = INPUT_SPP
+        elif self.id in ("bast_ppl", "bast_pml"):
+            path = INPUT_BAST
         else:
             path = None
         return path if path and os.path.isfile(path) else None
@@ -110,15 +113,13 @@ DOCUMENT_TYPES = [
     ),
     DocumentType(
         "bast_ppl", "BAST PPL", "BAST",
-        "BAST_PPL", "",
+        "BAST_PPL", "04. Template BAST PPL.docx",
         "Berita Acara Serah Terima untuk PPL",
-        implemented=False,
     ),
     DocumentType(
         "bast_pml", "BAST PML", "BAST",
-        "BAST_PML", "",
+        "BAST_PML", "04. Template BAST PML.docx",
         "Berita Acara Serah Terima untuk PML",
-        implemented=False,
     ),
 ]
 

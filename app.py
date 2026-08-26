@@ -23,6 +23,7 @@ from src import bapp_ppl
 from src import bapp_pml_t2
 from src import bapp_ppl_t2
 from src import spp
+from src import bast
 from src.validator import validate_excel_file, analyze_nulls
 from src.template_generator import generate_template
 from src.workflow import (
@@ -369,6 +370,8 @@ def main(page: ft.Page):
             ok, errors, dfs = bapp_mod.validate_input(path)
         elif doc and doc.group == "SPP":
             ok, errors, dfs = spp.validate_input(path)
+        elif doc and doc.group == "BAST":
+            ok, errors, dfs = bast.validate_input(path)
         else:
             ok, errors, dfs = validate_excel_file(path)
         state["dfs"], state["errors"] = dfs, errors
@@ -534,6 +537,47 @@ def main(page: ft.Page):
             data_file_chip.color = ft.Colors.GREY_900
             log(f"Data diverifikasi: {name} \u2192 VALID "
                 f"(PPL: {n_ppl}, PML: {n_pml})", "OK")
+            update_nav()
+            page.update()
+            return
+
+        if doc and doc.group == "BAST":
+            # Ringkasan khusus format BAST
+            df_mitra_b = dfs.get(bast.SHEET_NAME)
+            n_ppl_b = 0
+            n_pml_b = 0
+            if df_mitra_b is not None and not df_mitra_b.empty:
+                n_ppl_b = sum(
+                    1 for v in df_mitra_b["jabatan"]
+                    if str(v).strip().lower() == "ppl"
+                )
+                n_pml_b = sum(
+                    1 for v in df_mitra_b["jabatan"]
+                    if str(v).strip().lower() == "pml"
+                )
+            role_label = "PPL" if doc.kind == "ppl" else "PML"
+            n_target = n_ppl_b if doc.kind == "ppl" else n_pml_b
+            n_tugas = len(dfs["alokasi_tugas"]) if "alokasi_tugas" in dfs else 0
+            verify_area.controls = [
+                ft.Row(
+                    [
+                        stat_box(f"Total {role_label}", str(n_target),
+                                 good=n_target > 0),
+                        stat_box("Sheet data_mitra",
+                                 str(len(df_mitra_b)) if df_mitra_b is not None else "0",
+                                 good=df_mitra_b is not None and len(df_mitra_b) > 0),
+                        stat_box("Baris alokasi_tugas",
+                                 str(n_tugas),
+                                 good=n_tugas > 0),
+                    ],
+                    spacing=10,
+                ),
+            ]
+            verify_area.visible = True
+            data_file_chip.value = f"{name} \u2014 BAST {role_label}"
+            data_file_chip.color = ft.Colors.GREY_900
+            log(f"Data diverifikasi: {name} \u2192 VALID "
+                f"(PPL: {n_ppl_b}, PML: {n_pml_b})", "OK")
             update_nav()
             page.update()
             return
@@ -948,6 +992,15 @@ def main(page: ft.Page):
             df_mitra = state["dfs"].get(spp.SHEET_DATA_MITRA)
             n_total = len(df_mitra) if df_mitra is not None else 0
             extra = f" ({n_total} petugas total)"
+        elif doc.group == "BAST":
+            df_mitra_b = state["dfs"].get(bast.SHEET_NAME)
+            n_target = 0
+            if df_mitra_b is not None and not df_mitra_b.empty:
+                n_target = sum(
+                    1 for v in df_mitra_b["jabatan"]
+                    if str(v).strip().lower() == doc.kind
+                )
+            extra = f" ({n_target} {doc.kind.upper()})"
         else:
             n_rows = len(state["dfs"].get("data_petugas", []))
             extra = f" ({n_rows} baris)"
@@ -1257,6 +1310,55 @@ def main(page: ft.Page):
             update_nav()
             page.update()
 
+    async def generate_bast():
+        """Populasi BAST (PPL & PML) -- Berita Acara Serah Terima."""
+        _gen_ui_start()
+        gen_status.value = "Menyiapkan populasi dokumen\u2026"
+        page.update()
+
+        doc = current_doc()
+        kind = doc.kind  # 'ppl' | 'pml'
+        out_dir = tempfile.mkdtemp(prefix="gen_bast_")
+        log("=" * 46, "STEP")
+        log(f"MEMULAI GENERATE \u2014 BAST {kind.upper()}", "STEP")
+        log(f"Template : {os.path.basename(state['template_path'])}", "INFO")
+        log(f"Data     : {os.path.basename(state['file_path'])}", "INFO")
+
+        try:
+            for ev in bast.iter_generate(
+                    kind, state["dfs"], state["template_path"], out_dir):
+                t = ev.get("t")
+                if t == "log":
+                    log(ev["msg"], ev.get("level", "INFO"))
+                elif t == "file":
+                    state["generated_files"].append(ev["path"])
+                elif t == "progress":
+                    total = max(ev.get("total", 1), 1)
+                    gen_progress.max = total
+                    gen_progress.value = ev.get("done", 0) / total
+                    gen_status.value = (
+                        f"Mengisi dokumen {ev.get('done', 0)} dari {total}\u2026")
+                    page.update()
+                    await asyncio.sleep(0)
+                elif t == "done":
+                    state["generated_files"] = list(ev.get("generated", []))
+
+            n_ok = len(state["generated_files"])
+            state["generation_done"] = n_ok > 0
+            gen_progress.value = 1
+            gen_status.value = f"Selesai: {n_ok} dokumen berhasil dibuat."
+            log(f"GENERATE SELESAI \u2014 {n_ok} dokumen.",
+                "OK" if n_ok else "ERROR")
+            log(f"Folder output: {out_dir}", "INFO")
+        except Exception as ex:
+            gen_status.value = f"Generasi gagal: {ex}"
+            log(f"Generasi gagal: {ex}", "ERROR")
+        finally:
+            state["busy"] = False
+            btn_generate.disabled = False
+            update_nav()
+            page.update()
+
     async def run_generation(e=None):
         if state["busy"]:
             return
@@ -1287,6 +1389,11 @@ def main(page: ft.Page):
         # ── Jalur khusus: grup SPP ────────────────
         if doc and doc.group == "SPP":
             await generate_spp()
+            return
+
+        # ── Jalur khusus: grup BAST ────────────────
+        if doc and doc.group == "BAST":
+            await generate_bast()
             return
 
         df = state["dfs"].get("data_petugas")
