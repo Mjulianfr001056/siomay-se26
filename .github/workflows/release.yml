@@ -1,0 +1,75 @@
+name: Build and publish SIOMAY portable release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install application dependencies
+        run: python -m pip install --upgrade pip && python -m pip install .
+
+      - name: Build stable portable application
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart("v")
+          $buildVersion = $version -replace '-.*$'
+          git clone --local . stable-source
+          (Get-Content stable-source/src/app_config.py) -replace 'APP_VERSION = ".*"', "APP_VERSION = `"$version`"" | Set-Content stable-source/src/app_config.py
+          Set-Location stable-source
+          flet build windows --yes --module-name app --project SIOMAY --product SIOMAY --artifact SIOMAY --build-version $buildVersion --output ../build/stable
+
+      - name: Build beta portable application
+        shell: pwsh
+        run: |
+          git clone --local . beta-source
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart("v")
+          $buildVersion = $version -replace '-.*$'
+          (Get-Content beta-source/src/app_config.py) -replace 'APP_VERSION = ".*"', "APP_VERSION = `"$version`"" -replace 'UPDATE_CHANNEL = os.environ.get\("SIOMAY_UPDATE_CHANNEL", "stable"\).lower\(\)', 'UPDATE_CHANNEL = "beta"' | Set-Content beta-source/src/app_config.py
+          Set-Location beta-source
+          flet build windows --yes --module-name app --project "SIOMAY Beta" --product "SIOMAY Beta" --artifact "SIOMAY Beta" --build-version $buildVersion --output ../build/beta
+
+      - name: Package portable ZIP files and checksums
+        id: package
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $stableZip = "SIOMAY-$tag-windows.zip"
+          $betaZip = "SIOMAY-Beta-$tag-windows.zip"
+          Compress-Archive -Path "build/stable/SIOMAY" -DestinationPath $stableZip -CompressionLevel Optimal
+          Compress-Archive -Path "build/beta/SIOMAY Beta" -DestinationPath $betaZip -CompressionLevel Optimal
+          $stableHash = (Get-FileHash $stableZip -Algorithm SHA256).Hash.ToLower()
+          $betaHash = (Get-FileHash $betaZip -Algorithm SHA256).Hash.ToLower()
+          @"
+          ## Checksums
+
+          - $stableZip: `$stableHash`
+          - $betaZip: `$betaHash`
+          "@ | Set-Content -Path RELEASE_NOTES.md
+          "prerelease=$($tag.Contains('-').ToString().ToLower())" >> $env:GITHUB_OUTPUT
+
+      - name: Create draft GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          prerelease: ${{ steps.package.outputs.prerelease }}
+          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
+          files: |
+            SIOMAY-*-windows.zip

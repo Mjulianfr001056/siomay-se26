@@ -17,6 +17,7 @@ import tempfile
 
 import flet as ft
 
+from src.app_config import APP_TITLE
 from src import lampiran_spk
 from src import bapp_pml
 from src import bapp_ppl
@@ -39,6 +40,7 @@ from src.document_generator import (
     fill_row,
     slugify,
 )
+from src.updater import check_for_updates
 from utils import (
     MERGE_AVAILABLE,
     PDF_AVAILABLE,
@@ -74,7 +76,7 @@ DOC_ICONS = {
 
 
 def main(page: ft.Page):
-    page.title = "Generator Dokumen Administrasi SE2026"
+    page.title = APP_TITLE
     page.theme_mode = ft.ThemeMode.LIGHT
     page.theme = ft.Theme(
         # Scrollbar tebal & selalu jelas agar area yang bisa digulir terlihat
@@ -2081,6 +2083,7 @@ def main(page: ft.Page):
             "'pip install pywin32').", "WARN")
     update_nav()
     render_tracker()
+    page.run_task(check_for_updates)
 
 
 if __name__ == "__main__":
