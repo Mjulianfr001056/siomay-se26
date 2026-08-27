@@ -125,12 +125,12 @@ SIOMAY memproses file yang dipilih pengguna secara lokal di komputer pengguna.
 
 ### Menjalankan dari kode sumber
 
-1. Instal Python 3.13.
+1. Instal Python 3.14.
 2. Buat dan aktifkan virtual environment.
 3. Instal dependensi:
 
    ```powershell
-   pip install -r requirements.txt
+   py -3.14 -m pip install .
    ```
 
 4. Jalankan aplikasi:

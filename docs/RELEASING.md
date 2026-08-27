@@ -11,14 +11,15 @@ Dokumen ini menjelaskan proses rilis pilot SIOMAY melalui GitHub Releases.
 | Channel awal | `pilot` |
 | Application identifier | `id.go.bps.siomay` |
 | Minimum Windows | Windows 10 versi 1809, x64 |
-| Runtime terbundel | Python 3.13 |
+| Python pengembangan/CI | Python 3.14 |
+| Runtime terbundel | Python 3.13 (sementara) |
 
 Gunakan versi display untuk Git tag dan judul GitHub Release. Gunakan package version numerik untuk nama installer serta metadata Windows.
 
 ## Prasyarat build Windows
 
 - Windows 10/11 x64.
-- Python 3.13.
+- Python 3.14 untuk pengembangan dan menjalankan Flet CLI.
 - Visual Studio 2022 atau 2026 dengan workload **Desktop development with C++**.
 - Windows Developer Mode bila build memberi pesan bahwa symlink diperlukan.
 - Dependensi proyek terinstal dari `pyproject.toml`.
@@ -30,12 +31,12 @@ Flet membundel Python pada hasil build; pengguna akhir tidak perlu memasang Pyth
 Jalankan dari root repositori:
 
 ```powershell
-py -3.13 -m pip install --upgrade pip
-py -3.13 -m pip install .
+py -3.14 -m pip install --upgrade pip
+py -3.14 -m pip install .
 .\scripts\build-windows.ps1
 ```
 
-Gunakan `flet build`, bukan `python -m flet`; pada Flet 0.86 CLI tersedia sebagai executable terpisah. Sebelum membagikan build, pastikan hasilnya memuat folder `template/` dan `input/`. Folder `data/`, `db/`, `generator/`, notebook, cache Python, dan hasil dokumen tidak boleh dimasukkan ke dalam paket rilis.
+Gunakan `flet build`, bukan `python -m flet`; pada Flet 0.86 CLI tersedia sebagai executable terpisah. Saat ini skrip build memakai runtime Python 3.13 yang dibundel Flet, sementara Python 3.14 dipakai untuk pengembangan dan build tooling. Jangan mengganti `--python-version 3.13` menjadi 3.14 sebelum build Windows Flet dengan runtime 3.14 berhasil diuji. Sebelum membagikan build, pastikan hasilnya memuat `build/windows/siomay.exe` serta folder `build/windows/app/template/` dan `build/windows/app/input/`. Folder `data/`, `db/`, `generator/`, notebook, cache Python, dan hasil dokumen tidak boleh dimasukkan ke dalam paket rilis.
 
 ## Membuat installer
 

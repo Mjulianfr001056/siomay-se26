@@ -8,10 +8,13 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 if (-not (Get-Command flet -ErrorAction SilentlyContinue)) {
-    throw "Flet CLI tidak ditemukan. Instal dependensi proyek dengan Python 3.13 terlebih dahulu."
+    throw "Flet CLI tidak ditemukan. Instal dependensi proyek dengan Python 3.14 terlebih dahulu."
 }
 
+# Python 3.14 digunakan untuk pengembangan dan build tooling. Runtime Python
+# 3.13 tetap dibundel sampai build Flet dengan runtime 3.14 tervalidasi.
 flet build windows . `
+    --yes `
     --arch x64 `
     --python-version 3.13 `
     --project siomay `
@@ -30,9 +33,16 @@ if ($LASTEXITCODE -ne 0) {
 if ($Installer) {
     $iscc = Get-Command ISCC.exe -ErrorAction SilentlyContinue
     if (-not $iscc) {
-        throw "Inno Setup Compiler (ISCC.exe) tidak ditemukan. Instal Inno Setup 6, lalu ulangi dengan -Installer."
+        $defaultIscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
+        if (Test-Path $defaultIscc) {
+            $isccPath = $defaultIscc
+        } else {
+            throw "Inno Setup Compiler (ISCC.exe) tidak ditemukan. Instal Inno Setup 6, lalu ulangi dengan -Installer."
+        }
+    } else {
+        $isccPath = $iscc.Source
     }
-    & $iscc.Source "$root\installer\siomay.iss"
+    & $isccPath "$root\installer\siomay.iss"
     if ($LASTEXITCODE -ne 0) {
         throw "Pembuatan installer Inno Setup gagal."
     }

@@ -1,5 +1,5 @@
 ; SIOMAY Windows installer. Build after `flet build windows` succeeds.
-; Requires Inno Setup 6 and build/windows/x64/runner/Release from Flet/Flutter.
+; Requires Inno Setup 6 and the Flet output in build/windows.
 ; Keep AppId unchanged for every future SIOMAY upgrade.
 
 #define MyAppName "SIOMAY"
@@ -7,7 +7,7 @@
 #define MyAppPublisher "6304 - Muhammad Julian Firdaus, S.Tr.Stat."
 #define MyAppURL "https://github.com/Mjulianfr001056/siomay-se26"
 #define MyAppExeName "siomay.exe"
-#define MyBuildDir "..\build\windows\x64\runner\Release"
+#define MyBuildDir "..\build\windows"
 
 [Setup]
 AppId={{2F09AD98-2AC7-4CD4-BD85-856F232A1D64}
@@ -40,10 +40,12 @@ VersionInfoProductVersion={#MyAppVersion}
 ; SignTool=signtool sign /fd SHA256 /tr <timestamp-url> /td SHA256 /a $f
 
 [Languages]
-Name: "indonesian"; MessagesFile: "compiler:Languages\Indonesian.isl"
+; Inno Setup 6 does not bundle an Indonesian message file. Use its built-in
+; messages so this pilot installer builds with a standard Inno Setup install.
+Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "Buat ikon &desktop"; GroupDescription: "Ikon tambahan:"
+Name: "desktopicon"; Description: "Create a &desktop icon"; GroupDescription: "Additional icons:"
 
 [Files]
 Source: "{#MyBuildDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
