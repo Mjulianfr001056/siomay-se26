@@ -1,0 +1,38 @@
+[project]
+name = "siomay"
+version = "2026.1b1"
+description = "SIOMAY: Sistem Otomasi Massal dan Terpercaya"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "flet>=0.86.0",
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
+    "python-docx>=1.1.0",
+    "pypdf>=4.0.0",
+    "pywin32>=306; sys_platform == 'win32'",
+    "Pillow>=10.0.0",
+    "requests>=2.28.0",
+]
+
+[tool.flet]
+org = "id.go.bps"
+product = "SIOMAY"
+company = "6304 - Muhammad Julian Firdaus, S.Tr.Stat."
+copyright = "Copyright (c) 2026 6304 - Muhammad Julian Firdaus, S.Tr.Stat."
+
+[tool.flet.app]
+path = "."
+module = "app"
+
+[tool.flet.assets]
+dir = "assets"
+
+[tool.siomay.release]
+display-version = "v2026.1-beta.1"
+package-version = "2026.1.0.1"
+channel = "pilot"
+windows-minimum-version = "Windows 10 version 1809 (x64)"
+windows-architecture = "x64"
+application-identifier = "id.go.bps.siomay"
+repository = "https://github.com/Mjulianfr001056/siomay-se26"

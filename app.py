@@ -39,6 +39,16 @@ from src.document_generator import (
     fill_row,
     slugify,
 )
+from src.release import (
+    APP_FULL_NAME,
+    APPLICATION_IDENTIFIER,
+    DISPLAY_VERSION,
+    PACKAGE_VERSION,
+    PUBLISHER,
+    RELEASE_CHANNEL,
+    RELEASES_URL,
+)
+from src.updates import check_for_update
 from utils import (
     MERGE_AVAILABLE,
     PDF_AVAILABLE,
@@ -74,7 +84,7 @@ DOC_ICONS = {
 
 
 def main(page: ft.Page):
-    page.title = "Generator Dokumen Administrasi SE2026"
+    page.title = APP_FULL_NAME
     page.theme_mode = ft.ThemeMode.LIGHT
     page.theme = ft.Theme(
         # Scrollbar tebal & selalu jelas agar area yang bisa digulir terlihat
@@ -127,6 +137,81 @@ def main(page: ft.Page):
     def clear_logs(e=None):
         log_list.controls.clear()
         log("Log dibersihkan.", "INFO")
+
+    def close_dialog(dialog: ft.AlertDialog):
+        dialog.open = False
+        page.update()
+
+    def show_about(e=None):
+        about_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Tentang SIOMAY"),
+            content=ft.Column(
+                [
+                    ft.Text(APP_FULL_NAME, weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.BLUE_900),
+                    ft.Text("Sistem otomasi dokumen administrasi SE2026.",
+                            size=13, color=ft.Colors.GREY_700),
+                    ft.Divider(),
+                    ft.Text(f"Versi: {DISPLAY_VERSION} ({PACKAGE_VERSION})", size=13),
+                    ft.Text(f"Kanal rilis: {RELEASE_CHANNEL}", size=13),
+                    ft.Text(f"Publisher: {PUBLISHER}", size=13),
+                    ft.Text(f"ID aplikasi: {APPLICATION_IDENTIFIER}", size=11,
+                            color=ft.Colors.GREY_600, selectable=True),
+                ],
+                tight=True,
+                spacing=8,
+            ),
+            actions=[
+                ft.TextButton("Buka GitHub Releases",
+                              on_click=lambda _: page.launch_url(RELEASES_URL)),
+                ft.TextButton("Tutup", on_click=lambda _: close_dialog(about_dialog)),
+            ],
+        )
+        page.show_dialog(about_dialog)
+
+    async def on_check_updates(e=None):
+        """Check GitHub metadata only; installers are never run by this app."""
+        show_snackbar("Memeriksa pembaruan…", ft.Colors.BLUE_700)
+        try:
+            update = await asyncio.to_thread(check_for_update)
+        except Exception as ex:
+            log(f"Pemeriksaan pembaruan gagal: {ex}", "WARN")
+            show_snackbar("Pembaruan tidak dapat diperiksa. Coba lagi nanti.",
+                          ft.Colors.AMBER_800)
+            return
+
+        if update is None:
+            log(f"SIOMAY {DISPLAY_VERSION} sudah versi terbaru di kanal {RELEASE_CHANNEL}.",
+                "OK")
+            show_snackbar("Anda sudah menggunakan versi terbaru.", ft.Colors.GREEN_700)
+            return
+
+        update_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Pembaruan tersedia"),
+            content=ft.Column(
+                [
+                    ft.Text(f"{update.display_version} tersedia untuk kanal {RELEASE_CHANNEL}.",
+                            weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_900),
+                    ft.Text(f"Versi terpasang: {DISPLAY_VERSION}", size=13),
+                    ft.Text(
+                        "Untuk keamanan, unduh pembaruan hanya dari halaman "
+                        "GitHub Releases resmi.",
+                        size=13, color=ft.Colors.GREY_700,
+                    ),
+                ],
+                tight=True,
+                spacing=8,
+            ),
+            actions=[
+                ft.TextButton("Buka halaman rilis", on_click=lambda _: page.launch_url(
+                    update.release_notes_url)),
+                ft.TextButton("Nanti", on_click=lambda _: close_dialog(update_dialog)),
+            ],
+        )
+        log(f"Pembaruan tersedia: {update.display_version} ({update.package_version}).", "INFO")
+        page.show_dialog(update_dialog)
 
     # ------------------------------------------------------------------ #
     # Step tracker (atas, ala balenaEtcher)                               #
@@ -1987,7 +2072,7 @@ def main(page: ft.Page):
                 ),
                 ft.Column(
                     [
-                        ft.Text("Generator Dokumen Administrasi SE2026",
+                        ft.Text(APP_FULL_NAME,
                                 size=16, weight=ft.FontWeight.BOLD,
                                 color=ft.Colors.BLUE_900),
                         ft.Text("Panduan langkah demi langkah pembuatan dokumen",
@@ -1996,8 +2081,20 @@ def main(page: ft.Page):
                     spacing=0,
                 ),
                 ft.Container(expand=True),
+                ft.IconButton(
+                    icon=ft.Icons.SYSTEM_UPDATE_ALT_ROUNDED,
+                    icon_color=ft.Colors.BLUE_800,
+                    tooltip="Periksa pembaruan",
+                    on_click=on_check_updates,
+                ),
+                ft.IconButton(
+                    icon=ft.Icons.INFO_OUTLINE_ROUNDED,
+                    icon_color=ft.Colors.BLUE_800,
+                    tooltip="Tentang SIOMAY",
+                    on_click=show_about,
+                ),
                 ft.Container(
-                    content=ft.Text("Workflow Wizard", size=11,
+                    content=ft.Text(f"{DISPLAY_VERSION} · Pilot", size=11,
                                     weight=ft.FontWeight.W_600,
                                     color=ft.Colors.BLUE_800),
                     bgcolor=ft.Colors.BLUE_50, border_radius=20,
@@ -2074,7 +2171,7 @@ def main(page: ft.Page):
     page.add(header, tracker_bar, body, nav_bar)
 
     # Pesan awal
-    log("Selamat datang di Generator Dokumen Administrasi SE2026.", "STEP")
+    log(f"Selamat datang di {APP_FULL_NAME} {DISPLAY_VERSION}.", "STEP")
     log("Langkah 1: pilih jenis dokumen yang ingin dibuat.", "INFO")
     if not PDF_AVAILABLE:
         log("Konversi PDF nonaktif (butuh MS Word terpasang + "
