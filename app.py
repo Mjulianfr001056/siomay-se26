@@ -17,6 +17,7 @@ import tempfile
 
 import flet as ft
 
+from src.app_config import APP_TITLE
 from src import lampiran_spk
 from src import bapp_pml
 from src import bapp_ppl
@@ -2178,6 +2179,7 @@ def main(page: ft.Page):
             "'pip install pywin32').", "WARN")
     update_nav()
     render_tracker()
+    page.run_task(check_for_updates)
 
 
 if __name__ == "__main__":
