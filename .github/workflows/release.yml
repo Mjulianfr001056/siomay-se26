@@ -62,12 +62,12 @@ jobs:
           Compress-Archive -Path "build/beta/SIOMAY Beta" -DestinationPath $betaZip -CompressionLevel Optimal
           $stableHash = (Get-FileHash $stableZip -Algorithm SHA256).Hash.ToLower()
           $betaHash = (Get-FileHash $betaZip -Algorithm SHA256).Hash.ToLower()
-          @"
-          ## Checksums
-
-          - $stableZip: `$stableHash`
-          - $betaZip: `$betaHash`
-          "@ | Set-Content -Path RELEASE_NOTES.md
+          @(
+            "## Checksums"
+            ""
+            "- ${stableZip}: $stableHash"
+            "- ${betaZip}: $betaHash"
+          ) | Set-Content -Path RELEASE_NOTES.md
           "prerelease=$($tag.Contains('-').ToString().ToLower())" >> $env:GITHUB_OUTPUT
 
       - name: Create draft GitHub Release
