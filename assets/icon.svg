@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">SIOMAY application icon</title>
+  <desc id="desc">A blue document with automated workflow marks and a trusted check mark.</desc>
+  <defs>
+    <linearGradient id="background" x1="116" y1="78" x2="908" y2="946" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B5CAD"/>
+      <stop offset="1" stop-color="#063B73"/>
+    </linearGradient>
+    <linearGradient id="document" x1="286" y1="180" x2="734" y2="836" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DDEEFF"/>
+    </linearGradient>
+  </defs>
+  <rect x="56" y="56" width="912" height="912" rx="216" fill="url(#background)"/>
+  <path d="M299 169h292l164 164v444c0 43-35 78-78 78H299c-43 0-78-35-78-78V247c0-43 35-78 78-78Z" fill="url(#document)"/>
+  <path d="M591 169v134c0 17 13 30 30 30h134" fill="#A9D4FF"/>
+  <path d="M591 169v134c0 17 13 30 30 30h134" fill="none" stroke="#0B5CAD" stroke-linejoin="round" stroke-width="30"/>
+  <rect x="326" y="406" width="183" height="38" rx="19" fill="#70AEEA"/>
+  <rect x="326" y="487" width="302" height="38" rx="19" fill="#70AEEA"/>
+  <rect x="326" y="568" width="234" height="38" rx="19" fill="#70AEEA"/>
+  <circle cx="705" cy="678" r="176" fill="#13A88D" stroke="#FFFFFF" stroke-width="26"/>
+  <path d="m619 680 57 57 116-133" fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round" stroke-width="40"/>
+  <circle cx="340" cy="695" r="26" fill="#13A88D"/>
+  <circle cx="423" cy="695" r="26" fill="#13A88D"/>
+  <circle cx="506" cy="695" r="26" fill="#13A88D"/>
+</svg>
