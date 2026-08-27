@@ -25,6 +25,9 @@ jobs:
 
       - name: Build stable portable application
         shell: pwsh
+        env:
+          PYTHONIOENCODING: utf-8
+          FLET_CLI_NO_RICH_OUTPUT: "1"
         run: |
           $tag = "${{ github.ref_name }}"
           $version = $tag.TrimStart("v")
@@ -32,10 +35,13 @@ jobs:
           git clone --local . stable-source
           (Get-Content stable-source/src/app_config.py) -replace 'APP_VERSION = ".*"', "APP_VERSION = `"$version`"" | Set-Content stable-source/src/app_config.py
           Set-Location stable-source
-          flet build windows --yes --module-name app --project SIOMAY --product SIOMAY --artifact SIOMAY --build-version $buildVersion --output ../build/stable
+          flet build windows --yes --no-rich-output --module-name app --project SIOMAY --product SIOMAY --artifact SIOMAY --build-version $buildVersion --output ../build/stable
 
       - name: Build beta portable application
         shell: pwsh
+        env:
+          PYTHONIOENCODING: utf-8
+          FLET_CLI_NO_RICH_OUTPUT: "1"
         run: |
           git clone --local . beta-source
           $tag = "${{ github.ref_name }}"
@@ -43,7 +49,7 @@ jobs:
           $buildVersion = $version -replace '-.*$'
           (Get-Content beta-source/src/app_config.py) -replace 'APP_VERSION = ".*"', "APP_VERSION = `"$version`"" -replace 'UPDATE_CHANNEL = os.environ.get\("SIOMAY_UPDATE_CHANNEL", "stable"\).lower\(\)', 'UPDATE_CHANNEL = "beta"' | Set-Content beta-source/src/app_config.py
           Set-Location beta-source
-          flet build windows --yes --module-name app --project "SIOMAY Beta" --product "SIOMAY Beta" --artifact "SIOMAY Beta" --build-version $buildVersion --output ../build/beta
+          flet build windows --yes --no-rich-output --module-name app --project "SIOMAY Beta" --product "SIOMAY Beta" --artifact "SIOMAY Beta" --build-version $buildVersion --output ../build/beta
 
       - name: Package portable ZIP files and checksums
         id: package
