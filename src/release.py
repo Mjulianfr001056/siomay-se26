@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 APP_NAME = "SIOMAY"
+APP_TITLE = "SIOMAY — Sistem Otomasi Massal dan Terpercaya"
 APP_FULL_NAME = "SIOMAY: Sistem Otomasi Massal dan Terpercaya"
 PUBLISHER = "6304 - Muhammad Julian Firdaus, S.Tr.Stat."
 DISPLAY_VERSION = "v2026.1-beta.1"
 PACKAGE_VERSION = "2026.1.0.1"
-RELEASE_CHANNEL = "pilot"
+RELEASE_CHANNEL = "beta"
 APPLICATION_IDENTIFIER = "id.go.bps.siomay"
 REPOSITORY_URL = "https://github.com/Mjulianfr001056/siomay-se26"
 RELEASES_URL = f"{REPOSITORY_URL}/releases"

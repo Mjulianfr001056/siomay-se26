@@ -17,7 +17,6 @@ import tempfile
 
 import flet as ft
 
-from src.app_config import APP_TITLE
 from src import lampiran_spk
 from src import bapp_pml
 from src import bapp_ppl
@@ -42,6 +41,7 @@ from src.document_generator import (
 )
 from src.release import (
     APP_FULL_NAME,
+    APP_TITLE,
     APPLICATION_IDENTIFIER,
     DISPLAY_VERSION,
     PACKAGE_VERSION,
@@ -2179,7 +2179,7 @@ def main(page: ft.Page):
             "'pip install pywin32').", "WARN")
     update_nav()
     render_tracker()
-    page.run_task(check_for_updates)
+    page.run_task(on_check_updates)
 
 
 if __name__ == "__main__":

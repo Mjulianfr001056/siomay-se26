@@ -50,12 +50,13 @@ Kemampuan utama:
 ## Instalasi
 
 1. Buka halaman [Releases](https://github.com/Mjulianfr001056/siomay-se26/releases).
-2. Unduh installer `SIOMAY-Setup-<versi>.exe` dari rilis terbaru yang sesuai dengan kanal Anda.
-3. Jalankan installer.
-4. Ikuti petunjuk instalasi.
-5. Buka **SIOMAY** dari Start Menu Windows.
+2. Unduh arsip `SIOMAY-<tag>-windows.zip` dari rilis yang sesuai.
+3. Ekstrak seluruh isi ZIP ke folder yang dapat ditulis, misalnya `Documents\SIOMAY`.
+4. Jalankan `SIOMAY\SIOMAY.exe`.
 
-Jika Windows menampilkan peringatan keamanan, pastikan installer diperoleh langsung dari halaman Releases resmi proyek ini dan periksa nilai SHA-256 yang disertakan pada rilis.
+Gunakan tag tanpa tanda hubung (misalnya `v2026.1.1`) untuk rilis stabil. Tag yang memiliki suffix setelah tanda hubung (misalnya `v2026.1.2-beta.1`) adalah rilis beta/prerelease.
+
+Jika Windows menampilkan peringatan keamanan, pastikan ZIP diperoleh langsung dari halaman Releases resmi proyek ini dan periksa nilai SHA-256 yang disertakan pada rilis.
 
 ## Cara Menggunakan
 
@@ -81,10 +82,9 @@ SIOMAY menyediakan pemeriksaan pembaruan untuk memperoleh perbaikan dan fitur ba
 - Pembaruan patch dapat memperbaiki masalah tanpa mengubah alur utama aplikasi.
 - Pembaruan versi dapat menambah jenis dokumen, template, validasi, atau fitur baru.
 - Saat pembaruan tersedia, SIOMAY akan menampilkan informasi versi dan catatan perubahan.
-- Pada rilis pilot ini, pengguna diarahkan ke halaman GitHub Releases resmi untuk mengunduh installer secara manual.
-- Pembaruan otomatis baru akan diaktifkan setelah installer telah ditandatangani dan verifikasi SHA-256 diterapkan.
+- Saat pembaruan tersedia, pengguna diarahkan ke halaman GitHub Releases resmi untuk mengunduh ZIP secara manual.
 
-Untuk pengguna pilot, pembaruan dapat berasal dari kanal **pilot** sebelum dipromosikan ke kanal **stable**.
+Build beta memeriksa manifest kanal **beta**, sedangkan build stabil memeriksa kanal **stable**.
 
 ## Umpan Balik dan Pelaporan Masalah
 

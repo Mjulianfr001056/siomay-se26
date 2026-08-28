@@ -23,7 +23,7 @@ jobs:
       - name: Install application dependencies
         run: python -m pip install --upgrade pip && python -m pip install .
 
-      - name: Build stable portable application
+      - name: Build portable application
         shell: pwsh
         env:
           PYTHONIOENCODING: utf-8
@@ -32,49 +32,32 @@ jobs:
           $tag = "${{ github.ref_name }}"
           $version = $tag.TrimStart("v")
           $buildVersion = $version -replace '-.*$'
-          git clone --local . stable-source
-          (Get-Content stable-source/src/app_config.py) -replace 'APP_VERSION = ".*"', "APP_VERSION = `"$version`"" | Set-Content stable-source/src/app_config.py
-          Set-Location stable-source
-          flet build windows --yes --no-rich-output --module-name app --project SIOMAY --product SIOMAY --artifact SIOMAY --build-version $buildVersion --output ../build/stable
+          $channel = if ($tag.Contains("-")) { "beta" } else { "stable" }
+          git clone --local . release-source
+          (Get-Content release-source/src/release.py) `
+            -replace 'DISPLAY_VERSION = ".*"', "DISPLAY_VERSION = `"v$version`"" `
+            -replace 'PACKAGE_VERSION = ".*"', "PACKAGE_VERSION = `"$buildVersion`"" `
+            -replace 'RELEASE_CHANNEL = ".*"', "RELEASE_CHANNEL = `"$channel`"" | Set-Content release-source/src/release.py
+          Set-Location release-source
+          flet build windows --yes --no-rich-output --module-name app --project SIOMAY --product SIOMAY --artifact SIOMAY --build-version $buildVersion --output ../build
 
-      - name: Build beta portable application
-        shell: pwsh
-        env:
-          PYTHONIOENCODING: utf-8
-          FLET_CLI_NO_RICH_OUTPUT: "1"
-        run: |
-          git clone --local . beta-source
-          $tag = "${{ github.ref_name }}"
-          $version = $tag.TrimStart("v")
-          $buildVersion = $version -replace '-.*$'
-          (Get-Content beta-source/src/app_config.py) -replace 'APP_VERSION = ".*"', "APP_VERSION = `"$version`"" -replace 'UPDATE_CHANNEL = os.environ.get\("SIOMAY_UPDATE_CHANNEL", "stable"\).lower\(\)', 'UPDATE_CHANNEL = "beta"' | Set-Content beta-source/src/app_config.py
-          Set-Location beta-source
-          flet build windows --yes --no-rich-output --module-name app --project "SIOMAY Beta" --product "SIOMAY Beta" --artifact "SIOMAY Beta" --build-version $buildVersion --output ../build/beta
-
-      - name: Package portable ZIP files and checksums
+      - name: Package portable ZIP and checksum
         id: package
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
-          $stableZip = "SIOMAY-$tag-windows.zip"
-          $betaZip = "SIOMAY-Beta-$tag-windows.zip"
-          $stableExe = Get-ChildItem -Path build/stable -Recurse -File -Filter "SIOMAY.exe" | Select-Object -First 1
-          $betaExe = Get-ChildItem -Path build/beta -Recurse -File -Filter "SIOMAY Beta.exe" | Select-Object -First 1
-          if ($null -eq $stableExe) { throw "Could not find SIOMAY.exe in build/stable." }
-          if ($null -eq $betaExe) { throw "Could not find SIOMAY Beta.exe in build/beta." }
+          $zip = "SIOMAY-$tag-windows.zip"
+          $exe = Get-ChildItem -Path build -Recurse -File -Filter "SIOMAY.exe" | Select-Object -First 1
+          if ($null -eq $exe) { throw "Could not find SIOMAY.exe in build." }
           Remove-Item -Path package -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -Path package/SIOMAY, "package/SIOMAY Beta" -ItemType Directory -Force | Out-Null
-          Copy-Item -Path (Join-Path $stableExe.Directory.FullName "*") -Destination package/SIOMAY -Recurse -Force
-          Copy-Item -Path (Join-Path $betaExe.Directory.FullName "*") -Destination "package/SIOMAY Beta" -Recurse -Force
-          Compress-Archive -Path package/SIOMAY -DestinationPath $stableZip -CompressionLevel Optimal
-          Compress-Archive -Path "package/SIOMAY Beta" -DestinationPath $betaZip -CompressionLevel Optimal
-          $stableHash = (Get-FileHash $stableZip -Algorithm SHA256).Hash.ToLower()
-          $betaHash = (Get-FileHash $betaZip -Algorithm SHA256).Hash.ToLower()
+          New-Item -Path package/SIOMAY -ItemType Directory -Force | Out-Null
+          Copy-Item -Path (Join-Path $exe.Directory.FullName "*") -Destination package/SIOMAY -Recurse -Force
+          Compress-Archive -Path package/SIOMAY -DestinationPath $zip -CompressionLevel Optimal
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
           @(
             "## Checksums"
             ""
-            "- ${stableZip}: $stableHash"
-            "- ${betaZip}: $betaHash"
+            "- ${zip}: $hash"
           ) | Set-Content -Path RELEASE_NOTES.md
           "prerelease=$($tag.Contains('-').ToString().ToLower())" >> $env:GITHUB_OUTPUT
 
