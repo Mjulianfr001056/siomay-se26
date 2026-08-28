@@ -70,9 +70,10 @@ jobs:
           if (-not (Test-Path $pandasUtil)) {
             throw "The packaged pandas installation is incomplete: pandas.util is missing."
           }
-          # DOCX-to-PDF conversion uses Word COM through pywin32. pywin32 has
-          # both Python modules and versioned native DLLs, so check the final
-          # application payload rather than only trusting dependency resolution.
+          # DOCX-to-PDF conversion uses Word COM through pywin32. pywin32's
+          # wheel normally uses pywin32.pth to expose win32/pythoncom.py and
+          # native DLLs. utils.pdf_tools restores that bootstrap explicitly for
+          # Flet's embedded runtime, so all runtime paths must be in the payload.
           $win32com = Get-ChildItem -Path $appRoot -Recurse -Directory -Filter win32com | Select-Object -First 1
           if ($null -eq $win32com -or -not (Test-Path (Join-Path $win32com.FullName "client\__init__.py") -PathType Leaf)) {
             throw "The packaged application does not contain a complete pywin32 win32com.client installation required for Word PDF conversion."
@@ -80,8 +81,9 @@ jobs:
           $pythoncomShim = Get-ChildItem -Path $appRoot -Recurse -File -Filter "pythoncom.py" | Select-Object -First 1
           $pythoncom = Get-ChildItem -Path $appRoot -Recurse -File -Filter "pythoncom*.dll" | Select-Object -First 1
           $pywintypes = Get-ChildItem -Path $appRoot -Recurse -File -Filter "pywintypes*.dll" | Select-Object -First 1
-          if ($null -eq $pythoncomShim -or $null -eq $pythoncom -or $null -eq $pywintypes) {
-            throw "The packaged pywin32 installation is incomplete: pythoncom, pythoncom DLL, and pywintypes DLL are required for Word PDF conversion."
+          $pywin32System32 = Get-ChildItem -Path $appRoot -Recurse -Directory -Filter "pywin32_system32" | Select-Object -First 1
+          if ($null -eq $pythoncomShim -or $null -eq $pythoncom -or $null -eq $pywintypes -or $null -eq $pywin32System32) {
+            throw "The packaged pywin32 installation is incomplete: pythoncom, pythoncom DLL, pywintypes DLL, and pywin32_system32 are required for Word PDF conversion."
           }
 
       - name: Package portable ZIP and checksum
