@@ -39,7 +39,17 @@ jobs:
             -replace 'PACKAGE_VERSION = ".*"', "PACKAGE_VERSION = `"$buildVersion`"" `
             -replace 'RELEASE_CHANNEL = ".*"', "RELEASE_CHANNEL = `"$channel`"" | Set-Content release-source/src/release.py
           Set-Location release-source
-          flet build windows --yes --no-rich-output --module-name app --project SIOMAY --product SIOMAY --artifact SIOMAY --build-version $buildVersion --output ../build
+          flet build windows --yes --no-rich-output --no-compile-packages --python-version 3.13 --module-name app --project SIOMAY --product SIOMAY --artifact SIOMAY --build-version $buildVersion --output ../build
+
+      - name: Verify packaged Pandas modules
+        shell: pwsh
+        run: |
+          $pandas = Get-ChildItem -Path build -Recurse -Directory -Filter pandas | Select-Object -First 1
+          if ($null -eq $pandas) { throw "The packaged application does not contain pandas." }
+          $pandasUtil = Join-Path $pandas.FullName "util\__init__.py"
+          if (-not (Test-Path $pandasUtil)) {
+            throw "The packaged pandas installation is incomplete: pandas.util is missing."
+          }
 
       - name: Package portable ZIP and checksum
         id: package

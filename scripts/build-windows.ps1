@@ -16,6 +16,7 @@ if (-not (Get-Command flet -ErrorAction SilentlyContinue)) {
 flet build windows . `
     --yes `
     --arch x64 `
+    --no-compile-packages `
     --python-version 3.13 `
     --project siomay `
     --artifact siomay `
