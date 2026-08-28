@@ -44,22 +44,28 @@ jobs:
       - name: Verify packaged Python dependencies
         shell: pwsh
         run: |
-          $pythonRuntimes = @(Get-ChildItem -Path build -Recurse -File -Filter python.exe)
-          if ($pythonRuntimes.Count -ne 1) {
-            throw "Expected exactly one packaged Python runtime, found $($pythonRuntimes.Count)."
-          }
-          $python = $pythonRuntimes[0].FullName
-          Push-Location $pythonRuntimes[0].Directory.FullName
-          try {
-            & $python -c "import certifi, pandas, requests; print('certifi=' + certifi.where()); print('pandas=' + pandas.__version__); print('requests=' + requests.__version__)"
-            if ($LASTEXITCODE -ne 0) {
-              throw "The packaged Python runtime cannot import certifi, pandas, and requests."
+          # Flet's Windows runner embeds CPython in-process; the final portable
+          # application intentionally has no command-line python.exe to invoke.
+          # --no-compile-packages preserves these import-critical source files.
+          $exe = Get-ChildItem -Path build -Recurse -File -Filter "SIOMAY.exe" | Select-Object -First 1
+          if ($null -eq $exe) { throw "Could not find SIOMAY.exe in build." }
+          $appRoot = $exe.Directory.FullName
+          $certifi = Get-ChildItem -Path $appRoot -Recurse -Directory -Filter certifi | Select-Object -First 1
+          if ($null -eq $certifi) { throw "The packaged application does not contain certifi." }
+          foreach ($relativePath in @("__init__.py", "core.py", "cacert.pem")) {
+            $path = Join-Path $certifi.FullName $relativePath
+            if (-not (Test-Path $path -PathType Leaf)) {
+              throw "The packaged certifi installation is incomplete: $relativePath is missing."
             }
-          } finally {
-            Pop-Location
           }
-          $pandas = Get-ChildItem -Path build -Recurse -Directory -Filter pandas | Select-Object -First 1
-          if ($null -eq $pandas) { throw "The packaged application does not contain pandas." }
+          $requests = Get-ChildItem -Path $appRoot -Recurse -Directory -Filter requests | Select-Object -First 1
+          if ($null -eq $requests -or -not (Test-Path (Join-Path $requests.FullName "__init__.py") -PathType Leaf)) {
+            throw "The packaged application does not contain a complete requests installation."
+          }
+          $pandas = Get-ChildItem -Path $appRoot -Recurse -Directory -Filter pandas | Select-Object -First 1
+          if ($null -eq $pandas -or -not (Test-Path (Join-Path $pandas.FullName "__init__.py") -PathType Leaf)) {
+            throw "The packaged application does not contain a complete pandas installation."
+          }
           $pandasUtil = Join-Path $pandas.FullName "util\__init__.py"
           if (-not (Test-Path $pandasUtil)) {
             throw "The packaged pandas installation is incomplete: pandas.util is missing."
