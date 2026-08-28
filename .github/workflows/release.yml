@@ -41,9 +41,23 @@ jobs:
           Set-Location release-source
           flet build windows --yes --no-rich-output --no-compile-packages --python-version 3.13 --module-name app --project SIOMAY --product SIOMAY --artifact SIOMAY --build-version $buildVersion --output ../build
 
-      - name: Verify packaged Pandas modules
+      - name: Verify packaged Python dependencies
         shell: pwsh
         run: |
+          $pythonRuntimes = @(Get-ChildItem -Path build -Recurse -File -Filter python.exe)
+          if ($pythonRuntimes.Count -ne 1) {
+            throw "Expected exactly one packaged Python runtime, found $($pythonRuntimes.Count)."
+          }
+          $python = $pythonRuntimes[0].FullName
+          Push-Location $pythonRuntimes[0].Directory.FullName
+          try {
+            & $python -c "import certifi, pandas, requests; print('certifi=' + certifi.where()); print('pandas=' + pandas.__version__); print('requests=' + requests.__version__)"
+            if ($LASTEXITCODE -ne 0) {
+              throw "The packaged Python runtime cannot import certifi, pandas, and requests."
+            }
+          } finally {
+            Pop-Location
+          }
           $pandas = Get-ChildItem -Path build -Recurse -Directory -Filter pandas | Select-Object -First 1
           if ($null -eq $pandas) { throw "The packaged application does not contain pandas." }
           $pandasUtil = Join-Path $pandas.FullName "util\__init__.py"
