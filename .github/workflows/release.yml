@@ -44,21 +44,29 @@ jobs:
       - name: Bundle LibreOffice PDF converter
         shell: pwsh
         run: |
-          # LibreOffice is a native dependency, not a Python package. Extract its
-          # official MSI administrative image and place it beside SIOMAY.exe so
-          # the portable release works without Microsoft Word or a local install.
+          # LibreOffice is a native dependency, not a Python package. Install
+          # its official MSI into a temporary workspace directory, then place
+          # that runtime beside SIOMAY.exe for a fully portable release.
           $version = "25.8.6"
           $msi = "LibreOffice_$version`_Win_x86-64.msi"
           $url = "https://download.documentfoundation.org/libreoffice/stable/$version/win/x86_64/$msi"
+          $installRoot = Join-Path $PWD "libreoffice-install"
+          $log = Join-Path $PWD "libreoffice-msi.log"
           Invoke-WebRequest -Uri $url -OutFile $msi
-          msiexec.exe /a $msi /qn TARGETDIR="$PWD\libreoffice-image"
-          if ($LASTEXITCODE -ne 0) { throw "LibreOffice MSI extraction failed." }
-          $soffice = Get-ChildItem -Path libreoffice-image -Recurse -File -Filter "soffice.com" | Select-Object -First 1
-          if ($null -eq $soffice) { throw "LibreOffice administrative image does not contain soffice.com." }
+          $arguments = "/i `"$msi`" /qn /norestart /L*v `"$log`" INSTALLLOCATION=`"$installRoot`""
+          $installer = Start-Process -FilePath msiexec.exe -ArgumentList $arguments -Wait -PassThru
+          if ($installer.ExitCode -ne 0) {
+            if (Test-Path $log) { Get-Content $log -Tail 200 }
+            throw "LibreOffice MSI installation failed with exit code $($installer.ExitCode)."
+          }
+          $soffice = Join-Path $installRoot "program\soffice.com"
+          if (-not (Test-Path $soffice -PathType Leaf)) {
+            if (Test-Path $log) { Get-Content $log -Tail 200 }
+            throw "LibreOffice installation completed but program\soffice.com is missing."
+          }
           $exe = Get-ChildItem -Path build -Recurse -File -Filter "SIOMAY.exe" | Select-Object -First 1
           if ($null -eq $exe) { throw "Could not find SIOMAY.exe in build." }
-          $officeRoot = $soffice.Directory.Parent
-          Copy-Item -Path $officeRoot.FullName -Destination (Join-Path $exe.Directory.FullName "LibreOffice") -Recurse -Force
+          Copy-Item -Path $installRoot -Destination (Join-Path $exe.Directory.FullName "LibreOffice") -Recurse -Force
 
       - name: Verify packaged Python dependencies
         shell: pwsh
