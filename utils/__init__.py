@@ -1,7 +1,7 @@
 """utils — pustaka lokal berisi fungsi-fungsi utilitas yang dapat dipakai ulang.
 
 Submodul:
-- pdf_tools : deteksi kemampuan, konversi DOCX→PDF (Word COM), gabung PDF (pypdf)
+ - pdf_tools : deteksi kemampuan, konversi DOCX→PDF (LibreOffice), gabung PDF (pypdf)
 - files     : urutan alami nama berkas, ekstensi, arsip ZIP, buka Explorer,
               opsi dialog simpan
 - ui        : helper Flet (snackbar, log aktivitas, stat_box, tutup jendela)

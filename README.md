@@ -30,7 +30,7 @@ Kemampuan utama:
 - Mengunduh format/template data Excel yang diperlukan.
 - Memvalidasi struktur data Excel sebelum proses generate.
 - Menghasilkan dokumen `.docx` secara massal dari setiap baris data.
-- Mengonversi dokumen ke PDF bila Microsoft Word tersedia.
+- Mengonversi dokumen ke PDF dengan LibreOffice yang dibundel di rilis Windows.
 - Menggabungkan PDF dan/atau membuat arsip ZIP hasil dokumen.
 - Membuka lokasi hasil dokumen langsung melalui Windows Explorer.
 
@@ -41,11 +41,11 @@ Kemampuan utama:
 | Sistem operasi | Windows 10 64-bit versi 1809 atau lebih baru; Windows 11 didukung |
 | Arsitektur | x64 |
 | Microsoft Excel | Disarankan untuk mengisi atau memeriksa file input `.xlsx` |
-| Microsoft Word desktop | Diperlukan hanya untuk fitur konversi DOCX ke PDF |
+| Microsoft Word desktop | Tidak diperlukan untuk konversi DOCX ke PDF |
 | Koneksi internet | Diperlukan untuk memeriksa dan mengunduh pembaruan aplikasi |
 | Python | Tidak perlu diinstal oleh pengguna akhir |
 
-> Tanpa Microsoft Word, SIOMAY tetap dapat menghasilkan dokumen DOCX. Fitur konversi PDF akan tidak tersedia.
+> Rilis Windows menyertakan LibreOffice untuk konversi PDF. Jangan menghapus folder `LibreOffice` yang berada di samping `SIOMAY.exe` setelah mengekstrak ZIP.
 
 ## Instalasi
 
@@ -96,7 +96,7 @@ Saat melaporkan masalah, sertakan:
 - Jenis dokumen yang diproses.
 - Langkah-langkah sebelum masalah terjadi.
 - Pesan kesalahan atau tangkapan layar, bila aman untuk dibagikan.
-- Informasi apakah Microsoft Word tersedia pada komputer.
+- Informasi apakah folder `LibreOffice` masih berada di samping `SIOMAY.exe`.
 
 **Jangan mengirim file Excel, dokumen hasil, atau tangkapan layar yang mengandung data pribadi/sensitif melalui kanal publik.**
 
@@ -121,7 +121,7 @@ SIOMAY memproses file yang dipilih pengguna secara lokal di komputer pengguna.
 - openpyxl
 - python-docx
 - pypdf
-- pywin32
+- LibreOffice (runtime native yang dibundel saat rilis Windows)
 
 ### Menjalankan dari kode sumber
 

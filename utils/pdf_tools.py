@@ -1,72 +1,39 @@
-"""Utilitas PDF: deteksi kemampuan, konversi DOCX→PDF (Word COM), gabung PDF.
+"""Utilitas PDF: konversi DOCX→PDF (LibreOffice), gabung PDF.
 
 Semua fungsi bebas dari dependensi Flet sehingga mudah dipakai ulang dari
 skrip CLI, notebook, maupun aplikasi GUI.
 """
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
-# Keep these handles alive for the lifetime of the process. Closing an
-# os.add_dll_directory() handle removes its directory from the DLL search path.
-_PYWIN32_DLL_DIRECTORIES = []
+def find_libreoffice() -> Path | None:
+    """Kembalikan executable LibreOffice yang dibundel atau tersedia lokal."""
+    executable_dir = Path(sys.executable).resolve().parent
+    candidates = [
+        executable_dir / "LibreOffice" / "program" / "soffice.com",
+        executable_dir / "LibreOffice" / "program" / "soffice.exe",
+        Path(os.environ.get("PROGRAMFILES", r"C:\Program Files"))
+        / "LibreOffice" / "program" / "soffice.com",
+        Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"))
+        / "LibreOffice" / "program" / "soffice.com",
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    for command in ("soffice.com", "soffice.exe", "soffice"):
+        location = shutil.which(command)
+        if location:
+            return Path(location)
+    return None
 
 
-def configure_bundled_pywin32(search_roots=None):
-    """Restore the path setup normally performed by ``pywin32.pth``.
-
-    pywin32 installs ``pythoncom.py`` below ``win32`` rather than directly in
-    site-packages. In a regular Python installation, ``pywin32.pth`` adds that
-    directory (and ``win32/lib``) to ``sys.path`` and imports a bootstrap module
-    that exposes pywin32's native DLLs. Flet copies the wheel payload into its
-    embedded runtime but does not guarantee processing third-party ``.pth``
-    files, so perform the equivalent setup explicitly before importing COM.
-
-    ``search_roots`` is primarily for tests; production uses the embedded
-    interpreter's existing import paths.
-    """
-    roots = search_roots if search_roots is not None else sys.path
-    for root in roots:
-        try:
-            root_path = Path(root)
-        except TypeError:
-            continue
-
-        # A normal site-packages root has win32/pythoncom.py. The fallback also
-        # supports a Flet payload where sys.path points at a parent directory.
-        candidates = [root_path / "win32"]
-        if root_path.is_dir():
-            try:
-                candidates.extend(path.parent for path in root_path.rglob("pythoncom.py"))
-            except OSError:
-                continue
-
-        for win32_dir in candidates:
-            if not (win32_dir / "pythoncom.py").is_file():
-                continue
-
-            package_root = win32_dir.parent
-            for path in (win32_dir, win32_dir / "lib", package_root / "pythonwin"):
-                if path.is_dir() and str(path) not in sys.path:
-                    sys.path.insert(0, str(path))
-
-            system32_dir = package_root / "pywin32_system32"
-            if system32_dir.is_dir() and hasattr(os, "add_dll_directory"):
-                handle = os.add_dll_directory(str(system32_dir))
-                _PYWIN32_DLL_DIRECTORIES.append(handle)
-            return True
-    return False
-
-# Deteksi kemampuan konversi PDF (butuh MS Word terpasang + paket pywin32)
-PDF_AVAILABLE = False
-try:
-    configure_bundled_pywin32()
-    import pythoncom  # noqa: F401
-    import win32com.client  # noqa: F401
-    PDF_AVAILABLE = True
-except Exception:
-    pass
+# LibreOffice is a native application, bundled beside the Windows executable.
+PDF_AVAILABLE = find_libreoffice() is not None
 
 # Deteksi kemampuan penggabungan PDF (paket pypdf — murni Python)
 MERGE_AVAILABLE = False
@@ -78,50 +45,46 @@ except Exception:
 
 
 def convert_docx_to_pdf(src: str, dst: str):
-    """Konversi satu .docx → .pdf memakai Word COM (late binding).
-
-    Sengaja TIDAK memakai docx2pdf/gencache.EnsureDispatch: cache makepy-nya
-    (folder gen_py) yang korup/stale sering memicu error samar seperti
-    'Word.Application.Documents'. Late binding lewat DispatchEx sepenuhnya
-    melewati cache tersebut. Aman dipanggil dari worker thread karena COM
-    di-initialize & di-uninitialize di dalam fungsi ini.
-    """
-    try:
-        import pythoncom
-        pythoncom.CoInitialize()
-    except Exception:
-        pass
-    word = None
-    try:
-        import win32com.client as win32
-        word = win32.DispatchEx("Word.Application")
-        word.Visible = False
-        word.DisplayAlerts = 0
-        doc = word.Documents.Open(os.path.abspath(src), ReadOnly=True)
-        try:
-            # 17 = wdFormatPDF. SaveAs2 tersedia sejak Word 2010;
-            # fallback ke SaveAs untuk versi lama.
-            try:
-                doc.SaveAs2(os.path.abspath(dst), FileFormat=17)
-            except Exception:
-                doc.SaveAs(os.path.abspath(dst), FileFormat=17)
-        finally:
-            doc.Close(False)
-    except Exception as ex:
+    """Konversi satu DOCX ke PDF melalui LibreOffice secara headless."""
+    soffice = find_libreoffice()
+    if soffice is None:
         raise RuntimeError(
-            f"Gagal mengonversi '{os.path.basename(src)}' ke PDF: {ex}"
-        ) from ex
-    finally:
-        if word is not None:
-            try:
-                word.Quit()
-            except Exception:
-                pass
+            "LibreOffice tidak ditemukan. Ekstrak seluruh isi rilis SIOMAY "
+            "(termasuk folder LibreOffice) sebelum mengonversi PDF."
+        )
+    source = Path(src).resolve()
+    destination = Path(dst).resolve()
+    if not source.is_file():
+        raise RuntimeError(f"Dokumen sumber tidak ditemukan: {source}")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    with tempfile.TemporaryDirectory(prefix="siomay_lo_profile_") as profile_dir, \
+            tempfile.TemporaryDirectory(prefix="siomay_lo_output_") as output_dir:
+        command = [
+            str(soffice), "--headless", "--nologo", "--nodefault",
+            "--nofirststartwizard",
+            f"-env:UserInstallation={Path(profile_dir).resolve().as_uri()}",
+            "--convert-to", "pdf:writer_pdf_Export", "--outdir", output_dir,
+            str(source),
+        ]
         try:
-            import pythoncom
-            pythoncom.CoUninitialize()
-        except Exception:
-            pass
+            result = subprocess.run(
+                command, check=False, capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=120,
+            )
+        except OSError as ex:
+            raise RuntimeError(f"Gagal menjalankan LibreOffice: {ex}") from ex
+        except subprocess.TimeoutExpired as ex:
+            raise RuntimeError("Konversi PDF oleh LibreOffice melebihi 120 detik.") from ex
+
+        converted = Path(output_dir) / f"{source.stem}.pdf"
+        if result.returncode != 0 or not converted.is_file():
+            details = (result.stderr or result.stdout).strip()
+            suffix = f" Detail LibreOffice: {details}" if details else ""
+            raise RuntimeError(
+                f"Gagal mengonversi '{source.name}' ke PDF dengan LibreOffice.{suffix}"
+            )
+        shutil.move(str(converted), str(destination))
 
 
 def merge_pdfs(pdf_paths, dst: str):

@@ -41,6 +41,25 @@ jobs:
           Set-Location release-source
           flet build windows --yes --no-rich-output --no-compile-packages --python-version 3.13 --module-name app --project SIOMAY --product SIOMAY --artifact SIOMAY --build-version $buildVersion --output ../build
 
+      - name: Bundle LibreOffice PDF converter
+        shell: pwsh
+        run: |
+          # LibreOffice is a native dependency, not a Python package. Extract its
+          # official MSI administrative image and place it beside SIOMAY.exe so
+          # the portable release works without Microsoft Word or a local install.
+          $version = "25.8.6"
+          $msi = "LibreOffice_$version`_Win_x86-64.msi"
+          $url = "https://download.documentfoundation.org/libreoffice/stable/$version/win/x86_64/$msi"
+          Invoke-WebRequest -Uri $url -OutFile $msi
+          msiexec.exe /a $msi /qn TARGETDIR="$PWD\libreoffice-image"
+          if ($LASTEXITCODE -ne 0) { throw "LibreOffice MSI extraction failed." }
+          $soffice = Get-ChildItem -Path libreoffice-image -Recurse -File -Filter "soffice.com" | Select-Object -First 1
+          if ($null -eq $soffice) { throw "LibreOffice administrative image does not contain soffice.com." }
+          $exe = Get-ChildItem -Path build -Recurse -File -Filter "SIOMAY.exe" | Select-Object -First 1
+          if ($null -eq $exe) { throw "Could not find SIOMAY.exe in build." }
+          $officeRoot = $soffice.Directory.Parent
+          Copy-Item -Path $officeRoot.FullName -Destination (Join-Path $exe.Directory.FullName "LibreOffice") -Recurse -Force
+
       - name: Verify packaged Python dependencies
         shell: pwsh
         run: |
@@ -70,20 +89,9 @@ jobs:
           if (-not (Test-Path $pandasUtil)) {
             throw "The packaged pandas installation is incomplete: pandas.util is missing."
           }
-          # DOCX-to-PDF conversion uses Word COM through pywin32. pywin32's
-          # wheel normally uses pywin32.pth to expose win32/pythoncom.py and
-          # native DLLs. utils.pdf_tools restores that bootstrap explicitly for
-          # Flet's embedded runtime, so all runtime paths must be in the payload.
-          $win32com = Get-ChildItem -Path $appRoot -Recurse -Directory -Filter win32com | Select-Object -First 1
-          if ($null -eq $win32com -or -not (Test-Path (Join-Path $win32com.FullName "client\__init__.py") -PathType Leaf)) {
-            throw "The packaged application does not contain a complete pywin32 win32com.client installation required for Word PDF conversion."
-          }
-          $pythoncomShim = Get-ChildItem -Path $appRoot -Recurse -File -Filter "pythoncom.py" | Select-Object -First 1
-          $pythoncom = Get-ChildItem -Path $appRoot -Recurse -File -Filter "pythoncom*.dll" | Select-Object -First 1
-          $pywintypes = Get-ChildItem -Path $appRoot -Recurse -File -Filter "pywintypes*.dll" | Select-Object -First 1
-          $pywin32System32 = Get-ChildItem -Path $appRoot -Recurse -Directory -Filter "pywin32_system32" | Select-Object -First 1
-          if ($null -eq $pythoncomShim -or $null -eq $pythoncom -or $null -eq $pywintypes -or $null -eq $pywin32System32) {
-            throw "The packaged pywin32 installation is incomplete: pythoncom, pythoncom DLL, pywintypes DLL, and pywin32_system32 are required for Word PDF conversion."
+          $soffice = Join-Path $appRoot "LibreOffice\program\soffice.com"
+          if (-not (Test-Path $soffice -PathType Leaf)) {
+            throw "The packaged application does not contain LibreOffice required for DOCX-to-PDF conversion."
           }
 
       - name: Package portable ZIP and checksum

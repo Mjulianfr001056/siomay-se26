@@ -1658,7 +1658,7 @@ def main(page: ft.Page):
             hint_zip = ("ZIP berisi satu PDF per petugas; pilih 'PDF gabungan' "
                         "untuk mencetak semuanya dari satu berkas.")
         else:
-            hint_zip = ("ZIP berisi DOCX (pasang MS Word + pywin32 untuk PDF).")
+            hint_zip = ("ZIP berisi DOCX (LibreOffice bundel tidak ditemukan).")
         save_info_text.value = (
             f"{n} dokumen '{doc.label}' siap disimpan. "
             f"{hint_zip} Pilih format keluaran lalu klik Simpan."
@@ -1754,18 +1754,18 @@ def main(page: ft.Page):
             if fmt == "merged" and not PDF_AVAILABLE:
                 raise RuntimeError(
                     "Konversi PDF tidak tersedia "
-                    "(butuh MS Word terpasang + paket pywin32).")
+                    "(LibreOffice bundel tidak ditemukan).")
             elif fmt == "merged" and not MERGE_AVAILABLE:
                 raise RuntimeError(
                     "Penggabungan PDF tidak tersedia — "
                     "install dulu: pip install pypdf")
             elif fmt == "zip" and not PDF_AVAILABLE:
-                # Tanpa MS Word/pywin32: fallback — isi ZIP dengan DOCX
+                # Tanpa LibreOffice: fallback — isi ZIP dengan DOCX
                 page.pop_dialog()
                 save_ui_start(
                     f"Mengemas {n_total} dokumen DOCX ke dalam ZIP…")
                 page.update()
-                log("MS Word/pywin32 tidak tersedia — konversi PDF dilewati; "
+                log("LibreOffice tidak tersedia — konversi PDF dilewati; "
                     "ZIP diisi dokumen DOCX.", "WARN")
                 final = ensure_extension(save_path, "zip")
                 for arcname in await asyncio.to_thread(zip_files, files, final):
@@ -1792,8 +1792,7 @@ def main(page: ft.Page):
                         f"{n_total}…")
                     log(f"Konversi PDF: {os.path.basename(f)}", "INFO")
                     page.update()
-                    # Jalankan di worker thread agar UI tetap responsif;
-                    # convert_docx_to_pdf menangani inisialisasi COM-nya.
+                    # Jalankan di worker thread agar UI tetap responsif.
                     try:
                         await asyncio.to_thread(
                             convert_docx_to_pdf, f, pdf_out)
@@ -2175,8 +2174,7 @@ def main(page: ft.Page):
     log(f"Selamat datang di {APP_FULL_NAME} {DISPLAY_VERSION}.", "STEP")
     log("Langkah 1: pilih jenis dokumen yang ingin dibuat.", "INFO")
     if not PDF_AVAILABLE:
-        log("Konversi PDF nonaktif (butuh MS Word terpasang + "
-            "'pip install pywin32').", "WARN")
+        log("Konversi PDF nonaktif (LibreOffice bundel tidak ditemukan).", "WARN")
     update_nav()
     render_tracker()
     page.run_task(on_check_updates)
