@@ -13,7 +13,7 @@ from pathlib import Path
 
 def find_libreoffice() -> Path | None:
     """Kembalikan executable LibreOffice yang dibundel atau tersedia lokal."""
-    executable_dir = Path(sys.executable).resolve().parent
+    executable_dir = Path(os.path.abspath(sys.executable)).parent
     candidates = [
         executable_dir / "LibreOffice" / "program" / "soffice.com",
         executable_dir / "LibreOffice" / "program" / "soffice.exe",

@@ -58,7 +58,13 @@ jobs:
           $url = "https://download.documentfoundation.org/libreoffice/stable/$version/win/x86_64/$msi"
           $installRoot = Join-Path $PWD "libreoffice-install"
           $log = Join-Path $PWD "libreoffice-msi.log"
-          Invoke-WebRequest -Uri $url -OutFile $msi
+          # curl.exe retries handle transient network errors that
+          # Invoke-WebRequest does not recover from on CI runners.
+          & curl.exe -L --retry 5 --retry-delay 10 --retry-all-errors `
+            --connect-timeout 30 --max-time 600 -o $msi $url
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to download LibreOffice MSI from $url (curl exit $LASTEXITCODE)."
+          }
           $arguments = "/i `"$msi`" /qn /norestart /L*v `"$log`" INSTALLLOCATION=`"$installRoot`""
           $installer = Start-Process -FilePath msiexec.exe -ArgumentList $arguments -Wait -PassThru
           if ($installer.ExitCode -ne 0) {
