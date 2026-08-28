@@ -58,8 +58,16 @@ jobs:
           $tag = "${{ github.ref_name }}"
           $stableZip = "SIOMAY-$tag-windows.zip"
           $betaZip = "SIOMAY-Beta-$tag-windows.zip"
-          Compress-Archive -Path "build/stable/SIOMAY" -DestinationPath $stableZip -CompressionLevel Optimal
-          Compress-Archive -Path "build/beta/SIOMAY Beta" -DestinationPath $betaZip -CompressionLevel Optimal
+          $stableExe = Get-ChildItem -Path build/stable -Recurse -File -Filter "SIOMAY.exe" | Select-Object -First 1
+          $betaExe = Get-ChildItem -Path build/beta -Recurse -File -Filter "SIOMAY Beta.exe" | Select-Object -First 1
+          if ($null -eq $stableExe) { throw "Could not find SIOMAY.exe in build/stable." }
+          if ($null -eq $betaExe) { throw "Could not find SIOMAY Beta.exe in build/beta." }
+          Remove-Item -Path package -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -Path package/SIOMAY, "package/SIOMAY Beta" -ItemType Directory -Force | Out-Null
+          Copy-Item -Path (Join-Path $stableExe.Directory.FullName "*") -Destination package/SIOMAY -Recurse -Force
+          Copy-Item -Path (Join-Path $betaExe.Directory.FullName "*") -Destination "package/SIOMAY Beta" -Recurse -Force
+          Compress-Archive -Path package/SIOMAY -DestinationPath $stableZip -CompressionLevel Optimal
+          Compress-Archive -Path "package/SIOMAY Beta" -DestinationPath $betaZip -CompressionLevel Optimal
           $stableHash = (Get-FileHash $stableZip -Algorithm SHA256).Hash.ToLower()
           $betaHash = (Get-FileHash $betaZip -Algorithm SHA256).Hash.ToLower()
           @(
