@@ -19,11 +19,16 @@ UPDATE_MANIFEST_URL = (
 
 
 def version_key(value: str) -> tuple[int, ...]:
-    """Return a comparable numeric key for Windows package versions."""
+    """Return a comparable numeric key for Windows package versions.
+
+    Tuples are padded to four segments so that ``"2026.1"`` is equivalent to
+    ``"2026.1.0.0"`` while ``"2026.1.0.1"`` is correctly treated as newer.
+    """
     try:
-        return tuple(int(part) for part in value.split("."))
+        parts = tuple(int(part) for part in value.split("."))
     except (AttributeError, ValueError):
         return ()
+    return parts + (0,) * max(0, 4 - len(parts))
 
 
 def is_newer_package_version(candidate: str) -> bool:

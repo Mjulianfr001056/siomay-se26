@@ -31,8 +31,14 @@ jobs:
         run: |
           $tag = "${{ github.ref_name }}"
           $version = $tag.TrimStart("v")
-          $buildVersion = $version -replace '-.*$'
           $channel = if ($tag.Contains("-")) { "beta" } else { "stable" }
+          if ($channel -eq "beta") {
+            $baseVersion, $prerelease = $version -split '-', 2
+            $prereleaseNum = [int]($prerelease -replace '^\D+', '')
+            $buildVersion = "$baseVersion.0.$prereleaseNum"
+          } else {
+            $buildVersion = $version
+          }
           git clone --local . release-source
           (Get-Content release-source/src/release.py) `
             -replace 'DISPLAY_VERSION = ".*"', "DISPLAY_VERSION = `"v$version`"" `
