@@ -12,19 +12,42 @@ from pathlib import Path
 
 
 def find_libreoffice() -> Path | None:
-    """Kembalikan executable LibreOffice yang dibundel atau tersedia lokal."""
+    """Kembalikan executable LibreOffice yang dibundel atau tersedia lokal.
+
+    Urutan pencarian:
+    1. Folder LibreOffice/ di samping sys.executable  (distribusi portable / frozen)
+    2. Folder LibreOffice/ di root repo / direktori app.py (dev-run: python app.py)
+    3. Jalur instalasi sistem Windows standar (Program Files)
+    4. PATH (soffice.com / soffice.exe / soffice)
+    """
+    # 1) Samping executable Python / frozen .exe
     executable_dir = Path(os.path.abspath(sys.executable)).parent
     candidates = [
         executable_dir / "LibreOffice" / "program" / "soffice.com",
         executable_dir / "LibreOffice" / "program" / "soffice.exe",
+    ]
+
+    # 2) Root repo — saat dijalankan dengan `python app.py` dari direktori proyek
+    #    __file__ adalah utils/pdf_tools.py → dua level naik = root repo.
+    repo_root = Path(os.path.abspath(__file__)).parent.parent
+    candidates += [
+        repo_root / "LibreOffice" / "program" / "soffice.com",
+        repo_root / "LibreOffice" / "program" / "soffice.exe",
+    ]
+
+    # 3) Program Files Windows (instalasi sistem)
+    candidates += [
         Path(os.environ.get("PROGRAMFILES", r"C:\Program Files"))
         / "LibreOffice" / "program" / "soffice.com",
         Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"))
         / "LibreOffice" / "program" / "soffice.com",
     ]
+
     for candidate in candidates:
         if candidate.is_file():
             return candidate
+
+    # 4) PATH
     for command in ("soffice.com", "soffice.exe", "soffice"):
         location = shutil.which(command)
         if location:

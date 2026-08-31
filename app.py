@@ -24,6 +24,7 @@ from src import bapp_pml_t2
 from src import bapp_ppl_t2
 from src import spp
 from src import bast
+from src import bukti_terima
 from src.validator import validate_excel_file, analyze_nulls
 from src.template_generator import generate_template
 from src.workflow import (
@@ -81,6 +82,7 @@ DOC_ICONS = {
     "SPP": ft.Icons.ASSIGNMENT_RETURNED_ROUNDED,
     "BAPP Termin 2": ft.Icons.FACT_CHECK_OUTLINED,
     "BAST": ft.Icons.HANDSHAKE_OUTLINED,
+    "Bukti Terima": ft.Icons.RECEIPT_LONG_ROUNDED,
 }
 
 
@@ -338,17 +340,27 @@ def main(page: ft.Page):
         doc = current_doc()
         builtin = doc.builtin_template_path
         restyle_doc_cards()
-        step1_summary.value = (
-            f"Dipilih: {doc.label} — template bawaan "
-            + (f"tersedia ({doc.template_filename})." if builtin
-               else f"BELUM tersedia ({doc.template_filename}); Anda dapat mengunggah sendiri di langkah 2.")
-        )
-        if doc.input_template_path:
-            step1_summary.value += (
-                " Data memakai format input khusus — template Excel-nya dapat "
-                "diunduh di langkah 3."
+        # Dokumen tanpa template: auto-set sentinel agar gate Step 2 terpenuhi
+        if doc.no_template:
+            state["template_path"] = "__blank__"
+            step1_summary.value = (
+                f"Dipilih: {doc.label} — dokumen dibuat dari halaman kosong "
+                "(tidak perlu template Word)."
             )
-        step1_summary.color = ft.Colors.BLUE_900 if builtin else ft.Colors.AMBER_800
+            step1_summary.color = ft.Colors.BLUE_900
+        else:
+            state["template_path"] = None
+            step1_summary.value = (
+                f"Dipilih: {doc.label} — template bawaan "
+                + (f"tersedia ({doc.template_filename})." if builtin
+                   else f"BELUM tersedia ({doc.template_filename}); Anda dapat mengunggah sendiri di langkah 2.")
+            )
+            if doc.input_template_path:
+                step1_summary.value += (
+                    " Data memakai format input khusus — template Excel-nya dapat "
+                    "diunduh di langkah 3."
+                )
+            step1_summary.color = ft.Colors.BLUE_900 if builtin else ft.Colors.AMBER_800
         log(f"Dokumen dipilih: {doc.label}", "OK")
         update_nav()
         page.update()
@@ -451,6 +463,9 @@ def main(page: ft.Page):
                 shutil.copyfile(bundled, save_path)
                 log(f"Template input bawaan disimpan: {save_path} "
                     f"(format {doc.group})", "OK")
+            elif doc and doc.group == "Bukti Terima":
+                bukti_terima.generate_input_template(save_path)
+                log(f"Template Bukti Terima disimpan: {save_path}", "OK")
             else:
                 generate_template(save_path)
                 log(f"Template data disimpan: {save_path}", "OK")
@@ -475,6 +490,8 @@ def main(page: ft.Page):
             ok, errors, dfs = spp.validate_input(path)
         elif doc and doc.group == "BAST":
             ok, errors, dfs = bast.validate_input(path)
+        elif doc and doc.group == "Bukti Terima":
+            ok, errors, dfs = bukti_terima.validate_input(path)
         else:
             ok, errors, dfs = validate_excel_file(path)
         state["dfs"], state["errors"] = dfs, errors
@@ -681,6 +698,36 @@ def main(page: ft.Page):
             data_file_chip.color = ft.Colors.GREY_900
             log(f"Data diverifikasi: {name} \u2192 VALID "
                 f"(PPL: {n_ppl_b}, PML: {n_pml_b})", "OK")
+            update_nav()
+            page.update()
+            return
+
+        if doc and doc.group == "Bukti Terima":
+            # Ringkasan khusus format Bukti Terima
+            df_bt = dfs.get(bukti_terima.SHEET_NAME)
+            n_rows = len(df_bt) if df_bt is not None else 0
+            n_with_foto = 0
+            if df_bt is not None and bukti_terima.REQUIRED_COLUMNS[-1] in df_bt.columns:
+                n_with_foto = sum(
+                    1 for v in df_bt[bukti_terima.REQUIRED_COLUMNS[-1]]
+                    if str(v).strip() and str(v).strip().lower() != "nan"
+                )
+            verify_area.controls = [
+                ft.Row(
+                    [
+                        stat_box("Total Petugas", str(n_rows), good=n_rows > 0),
+                        stat_box("Dengan Link Foto", str(n_with_foto),
+                                 good=n_with_foto > 0),
+                        stat_box("Sheet", bukti_terima.SHEET_NAME, good=True),
+                    ],
+                    spacing=10,
+                ),
+            ]
+            verify_area.visible = True
+            data_file_chip.value = f"{name} \u2014 Bukti Terima"
+            data_file_chip.color = ft.Colors.GREY_900
+            log(f"Data diverifikasi: {name} \u2192 VALID "
+                f"({n_rows} petugas, {n_with_foto} dengan link foto)", "OK")
             update_nav()
             page.update()
             return
@@ -1073,8 +1120,10 @@ def main(page: ft.Page):
         doc = current_doc()
         if doc is None or not state["data_ok"] or not state["template_path"]:
             return
-        # Tampilkan peringatan akses link hanya untuk BAPP T1/T2 (PML/PPL)
-        bapp_t1_link_warning.visible = (doc.group in ("BAPP Termin 1", "BAPP Termin 2"))
+        # Tampilkan peringatan akses link untuk BAPP T1/T2 dan Bukti Terima
+        bapp_t1_link_warning.visible = (
+            doc.group in ("BAPP Termin 1", "BAPP Termin 2", "Bukti Terima")
+        )
         if doc.group == "Lampiran SPK" and doc.kind:
             try:
                 ctx = lampiran_spk.prepare_context(state["dfs"])
@@ -1104,13 +1153,22 @@ def main(page: ft.Page):
                     if str(v).strip().lower() == doc.kind
                 )
             extra = f" ({n_target} {doc.kind.upper()})"
+        elif doc.group == "Bukti Terima":
+            df_bt = state["dfs"].get(bukti_terima.SHEET_NAME)
+            n_rows = len(df_bt) if df_bt is not None else 0
+            extra = f" ({n_rows} petugas)"
         else:
             n_rows = len(state["dfs"].get("data_petugas", []))
             extra = f" ({n_rows} baris)"
+        template_label = (
+            "— (dibuat dari dokumen kosong)"
+            if state["template_path"] == "__blank__"
+            else os.path.basename(state["template_path"])
+        )
         gen_summary_text.value = (
             f"Dokumen : {doc.label}\n"
             f"Sumber data : {os.path.basename(state['file_path'])}{extra}\n"
-            f"Template : {os.path.basename(state['template_path'])}"
+            f"Template : {template_label}"
         )
 
     def _gen_ui_start():
@@ -1462,6 +1520,52 @@ def main(page: ft.Page):
             update_nav()
             page.update()
 
+    async def generate_bukti_terima():
+        """Populasi Bukti Terima Paket Internet — grid foto 2x2 per halaman A4."""
+        _gen_ui_start()
+        gen_status.value = "Mempersiapkan dokumen Bukti Terima\u2026"
+        page.update()
+
+        out_dir = tempfile.mkdtemp(prefix="gen_bt_")
+        log("=" * 46, "STEP")
+        log("MEMULAI GENERATE \u2014 Bukti Terima Paket Internet", "STEP")
+        log(f"Data     : {os.path.basename(state['file_path'])}", "INFO")
+        log("Template : \u2014 (dokumen dibuat dari halaman kosong)", "INFO")
+
+        try:
+            for ev in bukti_terima.iter_generate(state["dfs"], out_dir):
+                t = ev.get("t")
+                if t == "log":
+                    log(ev["msg"], ev.get("level", "INFO"))
+                elif t == "file":
+                    state["generated_files"].append(ev["path"])
+                elif t == "progress":
+                    total = max(ev.get("total", 1), 1)
+                    gen_progress.max = total
+                    gen_progress.value = ev.get("done", 0) / total
+                    gen_status.value = (
+                        f"Memproses petugas {ev.get('done', 0)} dari {total}\u2026")
+                    page.update()
+                    await asyncio.sleep(0)
+                elif t == "done":
+                    state["generated_files"] = list(ev.get("generated", []))
+
+            n_ok = len(state["generated_files"])
+            state["generation_done"] = n_ok > 0
+            gen_progress.value = 1
+            gen_status.value = f"Selesai: {n_ok} dokumen berhasil dibuat."
+            log(f"GENERATE SELESAI \u2014 {n_ok} dokumen.",
+                "OK" if n_ok else "ERROR")
+            log(f"Folder output: {out_dir}", "INFO")
+        except Exception as ex:
+            gen_status.value = f"Generasi gagal: {ex}"
+            log(f"Generasi gagal: {ex}", "ERROR")
+        finally:
+            state["busy"] = False
+            btn_generate.disabled = False
+            update_nav()
+            page.update()
+
     async def run_generation(e=None):
         if state["busy"]:
             return
@@ -1497,6 +1601,11 @@ def main(page: ft.Page):
         # ── Jalur khusus: grup BAST ────────────────
         if doc and doc.group == "BAST":
             await generate_bast()
+            return
+
+        # ── Jalur khusus: grup Bukti Terima ────────────────
+        if doc and doc.group == "Bukti Terima":
+            await generate_bukti_terima()
             return
 
         df = state["dfs"].get("data_petugas")
@@ -1634,7 +1743,15 @@ def main(page: ft.Page):
         if n == 0:
             return
         doc = current_doc()
-        if PDF_AVAILABLE:
+        is_bukti_terima = doc and doc.group == "Bukti Terima"
+        if is_bukti_terima:
+            # Bukti Terima menghasilkan 1 DOCX multi-halaman
+            if PDF_AVAILABLE:
+                zip_label = "Arsip ZIP (1 berkas PDF multi-halaman)"
+            else:
+                zip_label = ("Arsip ZIP (1 dokumen DOCX multi-halaman)"
+                             " — konversi PDF tidak tersedia")
+        elif PDF_AVAILABLE:
             # ZIP berisi hasil konversi PDF — satu berkas PDF per petugas
             zip_label = (f"Arsip ZIP ({n} berkas PDF)" if n > 1
                          else "Arsip ZIP (1 berkas PDF)")
@@ -1643,7 +1760,9 @@ def main(page: ft.Page):
                          " — konversi PDF tidak tersedia")
         options = [ft.Radio(value="zip", label=zip_label)]
         if PDF_AVAILABLE and MERGE_AVAILABLE:
-            if n > 1:
+            if is_bukti_terima:
+                merged_label = "PDF (1 berkas multi-halaman, siap cetak)"
+            elif n > 1:
                 merged_label = (f"PDF gabungan ({n} dokumen menjadi 1 berkas, "
                                 "urut no_urut_spk — siap cetak)")
             else:
@@ -1651,7 +1770,10 @@ def main(page: ft.Page):
             options.append(ft.Radio(value="merged", label=merged_label))
         fmt_options_col.controls = options
         fmt_group.value = "zip"
-        if PDF_AVAILABLE and not MERGE_AVAILABLE:
+        if is_bukti_terima:
+            hint_zip = ("Berkas DOCX multi-halaman berisi semua petugas "
+                        "dalam grid 2\u00d72 per halaman A4.")
+        elif PDF_AVAILABLE and not MERGE_AVAILABLE:
             hint_zip = ("ZIP akan berisi satu berkas PDF untuk setiap petugas "
                         "(opsi PDF gabungan butuh paket 'pypdf').")
         elif PDF_AVAILABLE:
@@ -2000,10 +2122,15 @@ def main(page: ft.Page):
 
     def update_nav():
         st = state["step"]
+        doc = current_doc()
         back_btn.visible = st > 0
         next_btn.disabled = False
         if st == 0:
-            next_btn.text = "Lanjut ke Template Dokumen"
+            # Ajust label next button bila dokumen tidak perlu template
+            if doc and doc.no_template and state["doc_id"]:
+                next_btn.text = "Lanjut ke Upload Data"
+            else:
+                next_btn.text = "Lanjut ke Template Dokumen"
             next_btn.icon = ft.Icons.ARROW_FORWARD_ROUNDED
             next_btn.disabled = state["doc_id"] is None
         elif st == 1:
@@ -2031,6 +2158,13 @@ def main(page: ft.Page):
 
     async def on_next(e):
         st = state["step"]
+        doc = current_doc()
+        # Jika dari Step 1 ke Step 2 dan dokumen tidak perlu template,
+        # lewati Step 2 langsung ke Step 3 (Upload Data).
+        if st == 0 and doc and doc.no_template:
+            state["max_step"] = max(state["max_step"], 2)
+            goto(2, force=True)
+            return
         if st == 2:
             refresh_step4()
         if st == 3:

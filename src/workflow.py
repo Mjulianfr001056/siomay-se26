@@ -18,12 +18,13 @@ INPUT_BAPP_T2_PML = os.path.join(INPUT_DIR, "03_input_bapp_pml_t2.xlsx")
 INPUT_BAPP_T2_PPL = os.path.join(INPUT_DIR, "03_input_bapp_ppl_t2.xlsx")
 INPUT_SPP = os.path.join(INPUT_DIR, "02_input_spp.xlsx")
 INPUT_BAST = os.path.join(INPUT_DIR, "04_input_bast.xlsx")
+INPUT_BUKTI_TERIMA = os.path.join(INPUT_DIR, "05_input_bukti_terima_paket_internet.xlsx")
 
 
 class DocumentType:
     def __init__(self, doc_id: str, label: str, group: str, prefix: str,
                  template_filename: str, description: str = "",
-                 implemented: bool = True):
+                 implemented: bool = True, no_template: bool = False):
         self.id = doc_id
         self.label = label
         self.group = group
@@ -31,10 +32,13 @@ class DocumentType:
         self.template_filename = template_filename
         self.description = description
         self.implemented = implemented          # False = "segera hadir"
+        self.no_template = no_template          # True = dibuat dari dokumen kosong
 
     @property
     def builtin_template_path(self):
         """Absolute path to the bundled template if it exists, else None."""
+        if not self.template_filename:
+            return None
         path = os.path.join(TEMPLATE_DIR, self.template_filename)
         return path if os.path.isfile(path) else None
 
@@ -64,6 +68,8 @@ class DocumentType:
             path = INPUT_SPP
         elif self.id in ("bast_ppl", "bast_pml"):
             path = INPUT_BAST
+        elif self.id == "bukti_terima":
+            path = INPUT_BUKTI_TERIMA
         else:
             path = None
         return path if path and os.path.isfile(path) else None
@@ -120,6 +126,12 @@ DOCUMENT_TYPES = [
         "bast_pml", "BAST PML", "BAST",
         "BAST_PML", "04. Template BAST PML.docx",
         "Berita Acara Serah Terima untuk PML",
+    ),
+    DocumentType(
+        "bukti_terima", "Bukti Terima Paket Internet", "Bukti Terima",
+        "Bukti_Terima", "",
+        "Dokumen bukti terima paket internet — grid foto 2\u00d72 per halaman A4",
+        no_template=True,
     ),
 ]
 
