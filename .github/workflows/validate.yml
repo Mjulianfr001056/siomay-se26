@@ -33,7 +33,7 @@ jobs:
           from pathlib import Path
 
           for path in Path("updates").glob("*.json"):
-              payload = json.loads(path.read_text(encoding="utf-8"))
+              payload = json.loads(path.read_text(encoding="utf-8-sig"))
               required = {"channel", "display_version", "package_version", "download_url", "release_notes_url"}
               missing = required.difference(payload)
               if missing:
