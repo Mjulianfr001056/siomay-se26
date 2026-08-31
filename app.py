@@ -1177,9 +1177,22 @@ def main(page: ft.Page):
         state["generated_files"] = []
         state["generation_done"] = False
         btn_generate.disabled = True
+        btn_generate.text = "Sedang Memproses Dokumen…"
+        btn_generate.icon = ft.Icons.HOURGLASS_TOP_ROUNDED
         gen_progress.visible = True
         gen_progress.value = 0
         gen_status.visible = True
+        update_nav()
+        page.update()
+
+    def _gen_ui_finish():
+        """Reset UI/state setelah proses generate selesai / error."""
+        state["busy"] = False
+        btn_generate.disabled = False
+        btn_generate.text = "Mulai Generate Dokumen"
+        btn_generate.icon = ft.Icons.PLAY_ARROW_ROUNDED
+        update_nav()
+        page.update()
 
     async def generate_lampiran_spk(doc, out_dir):
         """Populasi Lampiran SPK (PPL/PML) — port notebook generator/.
@@ -1229,10 +1242,7 @@ def main(page: ft.Page):
             gen_status.value = f"Generasi gagal: {ex}"
             log(f"Generasi gagal: {ex}", "ERROR")
         finally:
-            state["busy"] = False
-            btn_generate.disabled = False
-            update_nav()
-            page.update()
+            _gen_ui_finish()
 
     async def generate_bapp_pml():
         """Populasi BAPP T1 PML — screenshot grid bukti dukung."""
@@ -1276,10 +1286,7 @@ def main(page: ft.Page):
             gen_status.value = f"Generasi gagal: {ex}"
             log(f"Generasi gagal: {ex}", "ERROR")
         finally:
-            state["busy"] = False
-            btn_generate.disabled = False
-            update_nav()
-            page.update()
+            _gen_ui_finish()
 
     async def generate_bapp_ppl():
         """Populasi BAPP T1 PPL — screenshot grid bukti dukung."""
@@ -1323,10 +1330,7 @@ def main(page: ft.Page):
             gen_status.value = f"Generasi gagal: {ex}"
             log(f"Generasi gagal: {ex}", "ERROR")
         finally:
-            state["busy"] = False
-            btn_generate.disabled = False
-            update_nav()
-            page.update()
+            _gen_ui_finish()
 
     async def generate_bapp_pml_t2():
         """Populasi BAPP T2 PML — screenshot grid bukti dukung."""
@@ -1370,10 +1374,7 @@ def main(page: ft.Page):
             gen_status.value = f"Generasi gagal: {ex}"
             log(f"Generasi gagal: {ex}", "ERROR")
         finally:
-            state["busy"] = False
-            btn_generate.disabled = False
-            update_nav()
-            page.update()
+            _gen_ui_finish()
 
     async def generate_bapp_ppl_t2():
         """Populasi BAPP T2 PPL — screenshot grid bukti dukung."""
@@ -1417,10 +1418,7 @@ def main(page: ft.Page):
             gen_status.value = f"Generasi gagal: {ex}"
             log(f"Generasi gagal: {ex}", "ERROR")
         finally:
-            state["busy"] = False
-            btn_generate.disabled = False
-            update_nav()
-            page.update()
+            _gen_ui_finish()
 
     async def generate_spp():
         """Populasi SPP (PPL & PML) -- Surat Pernyataan Penyelesaian."""
@@ -1466,10 +1464,7 @@ def main(page: ft.Page):
             gen_status.value = f"Generasi gagal: {ex}"
             log(f"Generasi gagal: {ex}", "ERROR")
         finally:
-            state["busy"] = False
-            btn_generate.disabled = False
-            update_nav()
-            page.update()
+            _gen_ui_finish()
 
     async def generate_bast():
         """Populasi BAST (PPL & PML) -- Berita Acara Serah Terima."""
@@ -1515,10 +1510,7 @@ def main(page: ft.Page):
             gen_status.value = f"Generasi gagal: {ex}"
             log(f"Generasi gagal: {ex}", "ERROR")
         finally:
-            state["busy"] = False
-            btn_generate.disabled = False
-            update_nav()
-            page.update()
+            _gen_ui_finish()
 
     async def generate_bukti_terima():
         """Populasi Bukti Terima Paket Internet — grid foto 2x2 per halaman A4."""
@@ -1561,10 +1553,7 @@ def main(page: ft.Page):
             gen_status.value = f"Generasi gagal: {ex}"
             log(f"Generasi gagal: {ex}", "ERROR")
         finally:
-            state["busy"] = False
-            btn_generate.disabled = False
-            update_nav()
-            page.update()
+            _gen_ui_finish()
 
     async def run_generation(e=None):
         if state["busy"]:
@@ -1614,13 +1603,7 @@ def main(page: ft.Page):
             show_snackbar("Data kosong!", ft.Colors.RED_700)
             return
 
-        state["busy"] = True
-        state["generated_files"] = []
-        state["generation_done"] = False
-        btn_generate.disabled = True
-        gen_progress.visible = True
-        gen_progress.value = 0
-        gen_status.visible = True
+        _gen_ui_start()
         out_dir = tempfile.mkdtemp(prefix="gen_docs_")
 
         log("=" * 46, "STEP")
@@ -1664,21 +1647,25 @@ def main(page: ft.Page):
         state["generation_done"] = (
             len(state["generated_files"]) > 0 and error_count < total
         )
-        state["busy"] = False
-        btn_generate.disabled = False
         gen_status.value = (
             f"Selesai: {len(state['generated_files'])}/{total} dokumen berhasil."
         )
         log(f"GENERATE SELESAI — {len(state['generated_files'])} dokumen, "
             f"{error_count} gagal.", "OK" if state["generation_done"] else "ERROR")
-        update_nav()
-        page.update()
+        _gen_ui_finish()
 
     btn_generate = ft.Button(
         "Mulai Generate Dokumen",
         icon=ft.Icons.PLAY_ARROW_ROUNDED,
         style=ft.ButtonStyle(
-            color=ft.Colors.WHITE, bgcolor=ft.Colors.GREEN_700,
+            color={
+                ft.ControlState.DISABLED: ft.Colors.GREY_600,
+                ft.ControlState.DEFAULT: ft.Colors.WHITE,
+            },
+            bgcolor={
+                ft.ControlState.DISABLED: ft.Colors.GREY_300,
+                ft.ControlState.DEFAULT: ft.Colors.GREEN_700,
+            },
             shape=ft.RoundedRectangleBorder(radius=8),
             padding=ft.Padding.symmetric(horizontal=22, vertical=14),
         ),

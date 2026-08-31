@@ -18,27 +18,31 @@ def find_libreoffice() -> Path | None:
     1. Folder LibreOffice/ di samping sys.executable  (distribusi portable / frozen)
     2. Folder LibreOffice/ di root repo / direktori app.py (dev-run: python app.py)
     3. Jalur instalasi sistem Windows standar (Program Files)
-    4. PATH (soffice.com / soffice.exe / soffice)
+    4. PATH (soffice.exe / soffice.com / soffice)
     """
     # 1) Samping executable Python / frozen .exe
     executable_dir = Path(os.path.abspath(sys.executable)).parent
     candidates = [
-        executable_dir / "LibreOffice" / "program" / "soffice.com",
         executable_dir / "LibreOffice" / "program" / "soffice.exe",
+        executable_dir / "LibreOffice" / "program" / "soffice.com",
     ]
 
     # 2) Root repo — saat dijalankan dengan `python app.py` dari direktori proyek
     #    __file__ adalah utils/pdf_tools.py → dua level naik = root repo.
     repo_root = Path(os.path.abspath(__file__)).parent.parent
     candidates += [
-        repo_root / "LibreOffice" / "program" / "soffice.com",
         repo_root / "LibreOffice" / "program" / "soffice.exe",
+        repo_root / "LibreOffice" / "program" / "soffice.com",
     ]
 
     # 3) Program Files Windows (instalasi sistem)
     candidates += [
         Path(os.environ.get("PROGRAMFILES", r"C:\Program Files"))
+        / "LibreOffice" / "program" / "soffice.exe",
+        Path(os.environ.get("PROGRAMFILES", r"C:\Program Files"))
         / "LibreOffice" / "program" / "soffice.com",
+        Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"))
+        / "LibreOffice" / "program" / "soffice.exe",
         Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"))
         / "LibreOffice" / "program" / "soffice.com",
     ]
@@ -47,8 +51,8 @@ def find_libreoffice() -> Path | None:
         if candidate.is_file():
             return candidate
 
-    # 4) PATH
-    for command in ("soffice.com", "soffice.exe", "soffice"):
+    # 4) PATH (utamakan soffice.exe agar tidak memunculkan jendela console)
+    for command in ("soffice.exe", "soffice.com", "soffice"):
         location = shutil.which(command)
         if location:
             return Path(location)
@@ -90,10 +94,25 @@ def convert_docx_to_pdf(src: str, dst: str):
             "--convert-to", "pdf:writer_pdf_Export", "--outdir", output_dir,
             str(source),
         ]
+
+        # Di Windows, pastikan jendela konsol/CMD tidak muncul sama sekali
+        extra_kwargs = {}
+        if sys.platform == "win32":
+            extra_kwargs["creationflags"] = (
+                subprocess.CREATE_NO_WINDOW
+                if hasattr(subprocess, "CREATE_NO_WINDOW")
+                else 0x08000000
+            )
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = subprocess.SW_HIDE
+            extra_kwargs["startupinfo"] = startupinfo
+
         try:
             result = subprocess.run(
                 command, check=False, capture_output=True, text=True,
                 encoding="utf-8", errors="replace", timeout=120,
+                **extra_kwargs,
             )
         except OSError as ex:
             raise RuntimeError(f"Gagal menjalankan LibreOffice: {ex}") from ex
