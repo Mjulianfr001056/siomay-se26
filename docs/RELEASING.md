@@ -42,11 +42,14 @@ Gunakan `flet build`, bukan `python -m flet`; pada Flet 0.86 CLI tersedia sebaga
 
 1. Pastikan branch `master` sudah berisi perubahan yang diuji.
 2. Buat dan dorong satu tag untuk rilis: `v2026.1.2-beta.1` untuk beta atau `v2026.1.2` untuk stable.
-3. Workflow GitHub Actions membuat satu draft release dengan satu aset `SIOMAY-<tag>-windows.zip` dan checksum SHA-256 pada catatan rilis.
+3. Workflow GitHub Actions otomatis:
+   - Membangun executable dan membundel LibreOffice.
+   - Membuat draft GitHub Release berisi aset `SIOMAY-<tag>-windows.zip` dan catatan checksum SHA-256.
+   - Memperbarui manifest pembaruan (`updates/beta.json` atau `updates/stable.json`) dan mendorong pembaruan tersebut ke branch `master`.
 4. Tag dengan suffix setelah tanda hubung otomatis ditandai sebagai **pre-release**; tag tanpa suffix menjadi rilis normal.
 5. Uji ZIP dengan mengekstraknya di direktori baru yang dapat ditulis, lalu jalankan `SIOMAY\SIOMAY.exe`.
 6. Publikasikan draft release setelah pengujian berhasil.
-7. Perbarui `updates/beta.json` atau `updates/stable.json` dengan tag dan package version yang baru agar pemeriksaan pembaruan menunjuk ke rilis tersebut.
+
 
 ## Keamanan
 
