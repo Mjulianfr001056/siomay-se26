@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
@@ -65,4 +66,6 @@ def check_for_update(timeout: float = 5.0) -> UpdateInfo | None:
     """
     response = requests.get(UPDATE_MANIFEST_URL, timeout=timeout)
     response.raise_for_status()
-    return parse_update_manifest(response.json())
+    # Decode using utf-8-sig to cleanly strip any UTF-8 BOM if present
+    data = json.loads(response.content.decode("utf-8-sig"))
+    return parse_update_manifest(data)

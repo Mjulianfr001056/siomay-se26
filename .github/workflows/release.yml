@@ -179,7 +179,8 @@ jobs:
           git fetch origin master
           git checkout master
           $manifestPath = "updates/$channel.json"
-          [System.IO.File]::WriteAllText((Join-Path $PWD $manifestPath), $manifestJson + "`n", [System.Text.Encoding]::UTF8)
+          $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+          [System.IO.File]::WriteAllText((Join-Path $PWD $manifestPath), $manifestJson + "`n", $utf8NoBom)
           git add $manifestPath
           $changes = git status --porcelain
           if ($changes) {
