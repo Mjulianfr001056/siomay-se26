@@ -1,6 +1,6 @@
 [project]
 name = "siomay"
-version = "2026.1b1"
+version = "2026.1.1b3"
 description = "SIOMAY: Sistem Otomasi Massal dan Terpercaya"
 readme = "README.md"
 requires-python = ">=3.13,<3.15"
@@ -29,8 +29,8 @@ module = "app"
 dir = "assets"
 
 [tool.siomay.release]
-display-version = "v2026.1-beta.1"
-package-version = "2026.1.0.1"
+display-version = "v2026.1.1-beta.3"
+package-version = "2026.1.1.0.3"
 channel = "pilot"
 windows-minimum-version = "Windows 10 version 1809 (x64)"
 windows-architecture = "x64"

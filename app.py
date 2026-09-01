@@ -14,6 +14,7 @@ import datetime
 import os
 import shutil
 import tempfile
+import time
 
 import flet as ft
 
@@ -56,8 +57,11 @@ from utils import (
     PDF_AVAILABLE,
     close_window,
     convert_docx_to_pdf,
+    duration_info_box,
     ensure_extension,
     file_order_key,
+    format_duration,
+    format_timer_clock,
     make_activity_log,
     make_snackbar,
     merge_pdfs,
@@ -122,6 +126,8 @@ def main(page: ft.Page):
         "template_source": None,     # "unggahan" (template selalu diunggah user)
         "generated_files": [],       # hasil step 4
         "generation_done": False,
+        "gen_duration": None,        # durasi pembuatan dokumen (detik)
+        "conv_duration": None,       # durasi konversi PDF/penyimpanan (detik)
         "saved_path": None,          # hasil step 5
         "saved": False,              # True setelah output berhasil disimpan
         "busy": False,
@@ -337,6 +343,12 @@ def main(page: ft.Page):
 
     def select_doc(doc_id: str):
         state["doc_id"] = doc_id
+        state["generated_files"] = []
+        state["generation_done"] = False
+        state["gen_duration"] = None
+        state["conv_duration"] = None
+        gen_duration_box.visible = False
+        save_duration_box.visible = False
         doc = current_doc()
         builtin = doc.builtin_template_path
         restyle_doc_cards()
@@ -1089,6 +1101,10 @@ def main(page: ft.Page):
                                   color=ft.Colors.BLUE_700,
                                   bgcolor=ft.Colors.BLUE_GREY_100)
     gen_status = ft.Text("", size=13, color=ft.Colors.BLUE_900, visible=False)
+    gen_duration_box = ft.Container(visible=False)
+    _gen_timer_task = None
+    _gen_start_time = 0.0
+
     bapp_t1_link_warning = ft.Container(
         visible=False,
         content=ft.Row(
@@ -1171,26 +1187,70 @@ def main(page: ft.Page):
             f"Template : {template_label}"
         )
 
+    async def _gen_timer_loop():
+        """Loop asinkron untuk memperbarui timer live pada langkah 4."""
+        nonlocal _gen_start_time
+        try:
+            while state["busy"]:
+                elapsed = time.time() - _gen_start_time
+                clock_str = format_timer_clock(elapsed)
+                btn_generate.text = f"Sedang Memproses Dokumen… ({clock_str})"
+                page.update()
+                await asyncio.sleep(0.5)
+        except asyncio.CancelledError:
+            pass
+
     def _gen_ui_start():
         """Persiapan UI/state yang sama untuk semua jalur generate."""
+        nonlocal _gen_timer_task, _gen_start_time
         state["busy"] = True
         state["generated_files"] = []
         state["generation_done"] = False
+        state["gen_duration"] = None
+        _gen_start_time = time.time()
+        gen_duration_box.visible = False
+
         btn_generate.disabled = True
-        btn_generate.text = "Sedang Memproses Dokumen…"
+        btn_generate.text = "Sedang Memproses Dokumen… (00:00)"
         btn_generate.icon = ft.Icons.HOURGLASS_TOP_ROUNDED
         gen_progress.visible = True
         gen_progress.value = 0
         gen_status.visible = True
+        if _gen_timer_task and not _gen_timer_task.done():
+            _gen_timer_task.cancel()
+        _gen_timer_task = asyncio.create_task(_gen_timer_loop())
         update_nav()
         page.update()
 
     def _gen_ui_finish():
         """Reset UI/state setelah proses generate selesai / error."""
+        nonlocal _gen_timer_task, _gen_start_time
+        if _gen_timer_task and not _gen_timer_task.done():
+            _gen_timer_task.cancel()
+        duration = time.time() - _gen_start_time
+        state["gen_duration"] = duration
         state["busy"] = False
         btn_generate.disabled = False
         btn_generate.text = "Mulai Generate Dokumen"
         btn_generate.icon = ft.Icons.PLAY_ARROW_ROUNDED
+
+        # Tampilkan kotak lilac info durasi jika dokumen berhasil dibuat
+        if state["generation_done"] and len(state["generated_files"]) > 0:
+            doc = current_doc()
+            doc_name = doc.label if doc else "Dokumen"
+            n_files = len(state["generated_files"])
+            gen_duration_box.content = duration_info_box(
+                title="Waktu Pembuatan Dokumen Selesai",
+                items=[
+                    ("Dokumen", f"{doc_name} ({n_files} berkas)"),
+                    ("Waktu pembuatan (generate)", format_duration(duration)),
+                ],
+                icon=ft.Icons.TIMER_ROUNDED,
+            )
+            gen_duration_box.visible = True
+        else:
+            gen_duration_box.visible = False
+
         update_nav()
         page.update()
 
@@ -1690,6 +1750,7 @@ def main(page: ft.Page):
             ft.Container(height=6),
             gen_progress,
             gen_status,
+            gen_duration_box,
         ],
         spacing=10, scroll=ft.ScrollMode.AUTO, expand=True,
     )
@@ -1706,6 +1767,9 @@ def main(page: ft.Page):
                                    color=ft.Colors.BLUE_700,
                                    bgcolor=ft.Colors.BLUE_GREY_100)
     save_status = ft.Text("", size=13, color=ft.Colors.BLUE_900, visible=False)
+    save_duration_box = ft.Container(visible=False)
+    _save_timer_task = None
+    _save_start_time = 0.0
 
     # Dialog modal: ditampilkan saat konversi DOCX→PDF berlangsung
     _save_dialog_msg = ft.Text("Menyiapkan data…", size=14,
@@ -1779,11 +1843,17 @@ def main(page: ft.Page):
             open_in_explorer(state["saved_path"])
 
     def restart_workflow(e=None):
+        nonlocal _gen_timer_task, _save_timer_task
+        if _gen_timer_task and not _gen_timer_task.done():
+            _gen_timer_task.cancel()
+        if _save_timer_task and not _save_timer_task.done():
+            _save_timer_task.cancel()
         state.update({
             "step": 0, "max_step": 0, "doc_id": None, "file_path": None,
             "dfs": {}, "data_ok": False, "errors": [],
             "template_path": None, "template_source": None,
             "generated_files": [], "generation_done": False,
+            "gen_duration": None, "conv_duration": None,
             "saved_path": None, "saved": False, "busy": False,
         })
         restyle_doc_cards()
@@ -1798,9 +1868,11 @@ def main(page: ft.Page):
         gen_progress.visible = False
         gen_progress.value = 0
         gen_status.visible = False
+        gen_duration_box.visible = False
         bapp_t1_link_warning.visible = False
         gen_summary_text.value = "Lengkapi langkah sebelumnya."
         save_result_area.visible = False
+        save_duration_box.visible = False
         save_progress.visible = False
         save_status.visible = False
         fmt_options_col.disabled = False
@@ -1811,12 +1883,32 @@ def main(page: ft.Page):
         log("── Sesi baru dimulai ──", "STEP")
         goto(0)
 
+    async def _save_timer_loop():
+        """Loop asinkron untuk memperbarui timer live pada dialog dan status langkah 5."""
+        nonlocal _save_start_time
+        try:
+            while state["busy"]:
+                elapsed = time.time() - _save_start_time
+                clock_str = format_timer_clock(elapsed)
+                btn_save.text = f"Menyimpan… ({clock_str})"
+                # Update status teks jika ada base message
+                base_msg = save_status.data or "Memproses penyimpanan…"
+                save_status.value = f"{base_msg} ({clock_str})"
+                # Update pesan dialog jika dialog sedang aktif
+                dialog_base = _save_dialog_msg.data or "Menyiapkan data…"
+                _save_dialog_msg.value = f"{dialog_base} ({clock_str})"
+                page.update()
+                await asyncio.sleep(0.5)
+        except asyncio.CancelledError:
+            pass
+
     def save_ui_start(message: str = "Menyiapkan penyimpanan…"):
         """Tampilkan indikator loading dan kunci tombol selama menyimpan."""
         state["busy"] = True
         btn_save.disabled = True
         btn_save.text = "Menyimpan…"
         fmt_options_col.disabled = True
+        save_status.data = message
         save_status.value = message
         save_progress.visible = True
         save_status.visible = True
@@ -1824,6 +1916,9 @@ def main(page: ft.Page):
 
     def save_ui_done():
         """Kembalikan tombol ke normal dan sembunyikan indikator proses."""
+        nonlocal _save_timer_task
+        if _save_timer_task and not _save_timer_task.done():
+            _save_timer_task.cancel()
         state["busy"] = False
         btn_save.disabled = False
         btn_save.text = "Simpan Hasil"
@@ -1832,6 +1927,7 @@ def main(page: ft.Page):
         save_status.visible = False
 
     async def on_save_output(e):
+        nonlocal _save_timer_task, _save_start_time
         if state["busy"] or not state["generated_files"]:
             return
         files = state["generated_files"]
@@ -1853,11 +1949,19 @@ def main(page: ft.Page):
         n_total = len(files)
         # ── Kunci UI & tampilkan dialog modal ──────────────────────
         state["busy"] = True
+        state["conv_duration"] = None
+        _save_start_time = time.time()
+        save_duration_box.visible = False
+
         btn_save.disabled = True
-        btn_save.text = "Menyimpan…"
+        btn_save.text = "Menyimpan… (00:00)"
         fmt_options_col.disabled = True
-        _save_dialog_msg.value = "Menyiapkan data…"
+        _save_dialog_msg.data = "Menyiapkan data…"
+        _save_dialog_msg.value = "Menyiapkan data… (00:00)"
         page.show_dialog(save_preparing_dialog)
+        if _save_timer_task and not _save_timer_task.done():
+            _save_timer_task.cancel()
+        _save_timer_task = asyncio.create_task(_save_timer_loop())
         page.update()
         try:
             if fmt == "merged" and not PDF_AVAILABLE:
@@ -1896,9 +2000,10 @@ def main(page: ft.Page):
                 for idx, f in enumerate(files_sorted, start=1):
                     base = os.path.splitext(os.path.basename(f))[0]
                     pdf_out = os.path.join(tmp_pdf_dir, base + ".pdf")
-                    _save_dialog_msg.value = (
-                        f"Mengonversi ke PDF: dokumen {idx} dari "
-                        f"{n_total}…")
+                    conv_msg = f"Mengonversi ke PDF: dokumen {idx} dari {n_total}…"
+                    _save_dialog_msg.data = conv_msg
+                    elapsed = time.time() - _save_start_time
+                    _save_dialog_msg.value = f"{conv_msg} ({format_timer_clock(elapsed)})"
                     log(f"Konversi PDF: {os.path.basename(f)}", "INFO")
                     page.update()
                     # Jalankan di worker thread agar UI tetap responsif.
@@ -1943,6 +2048,12 @@ def main(page: ft.Page):
                     state["saved_path"] = final
                     log(f"Hasil disimpan (ZIP): {final} "
                         f"({len(pdfs)} berkas PDF)", "OK")
+
+            # Hitung durasi proses konversi/penyimpanan
+            conv_duration = time.time() - _save_start_time
+            state["conv_duration"] = conv_duration
+            if _save_timer_task and not _save_timer_task.done():
+                _save_timer_task.cancel()
             size_kb = os.path.getsize(state["saved_path"]) / 1024
             save_result_area.controls = [
                 ft.Container(
@@ -1990,6 +2101,26 @@ def main(page: ft.Page):
                 )
             ]
             save_result_area.visible = True
+
+            # Tampilkan kotak lilac info durasi di Step 5
+            doc_name = doc.label if doc else "Dokumen"
+            dur_items = [
+                ("Dokumen", f"{doc_name} ({n_total} berkas)"),
+            ]
+            if state.get("gen_duration") is not None:
+                dur_items.append(("Waktu pembuatan (generate)", format_duration(state["gen_duration"])))
+            dur_items.append(("Waktu penyimpanan (konversi PDF & simpan)", format_duration(conv_duration)))
+            if state.get("gen_duration") is not None:
+                total_duration = state["gen_duration"] + conv_duration
+                dur_items.append(("Total waktu proses", format_duration(total_duration)))
+
+            save_duration_box.content = duration_info_box(
+                title="Ringkasan Waktu Proses",
+                items=dur_items,
+                icon=ft.Icons.TIMER_ROUNDED,
+            )
+            save_duration_box.visible = True
+
             state["saved"] = True      # penanda sesi langkah 5 tuntas
             update_nav()
             fmt_label = {"zip": "Pengemasan ZIP",
@@ -1998,6 +2129,7 @@ def main(page: ft.Page):
         except Exception as ex:
             log(f"Gagal menyimpan hasil: {ex}", "ERROR")
             show_snackbar(f"Gagal menyimpan: {ex}", ft.Colors.RED_700)
+            save_duration_box.visible = False
         finally:
             # Pastikan dialog modal tertutup (siapapun path-nya)
             try:
@@ -2032,6 +2164,7 @@ def main(page: ft.Page):
             ft.Container(height=6),
             save_progress,
             save_status,
+            save_duration_box,
             save_result_area,
         ],
         spacing=10, scroll=ft.ScrollMode.AUTO, expand=True,

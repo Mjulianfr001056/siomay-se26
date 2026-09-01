@@ -17,6 +17,69 @@ LOG_STYLES = {
 }
 
 
+def format_duration(seconds: float) -> str:
+    """Format durasi detik ke bentuk teks ramah pengguna (detik / menit detik)."""
+    if seconds < 0:
+        seconds = 0
+    if seconds < 60:
+        if seconds < 10:
+            return f"{seconds:.1f} detik".replace(".", ",")
+        return f"{int(round(seconds))} detik"
+    minutes = int(seconds // 60)
+    rem_seconds = int(round(seconds % 60))
+    if rem_seconds == 60:
+        minutes += 1
+        rem_seconds = 0
+    if rem_seconds == 0:
+        return f"{minutes} menit"
+    return f"{minutes} menit {rem_seconds} detik"
+
+
+def format_timer_clock(seconds: float) -> str:
+    """Format durasi detik ke bentuk jam digital mm:ss."""
+    if seconds < 0:
+        seconds = 0
+    mins = int(seconds // 60)
+    secs = int(seconds % 60)
+    return f"{mins:02d}:{secs:02d}"
+
+
+def duration_info_box(title: str, items: list[tuple[str, str]], icon: str = ft.Icons.TIMER_OUTLINED) -> ft.Container:
+    """Kotak informasi durasi berwarna light lilac (ungu muda)."""
+    rows = []
+    for label, val in items:
+        rows.append(
+            ft.Row(
+                [
+                    ft.Text(f"{label}:", size=12, color=ft.Colors.PURPLE_900),
+                    ft.Text(val, size=12, weight=ft.FontWeight.BOLD, color=ft.Colors.PURPLE_900),
+                ],
+                spacing=6,
+            )
+        )
+    return ft.Container(
+        content=ft.Column(
+            [
+                ft.Row(
+                    [
+                        ft.Icon(icon, color=ft.Colors.PURPLE_700, size=20),
+                        ft.Text(title, size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.PURPLE_900),
+                    ],
+                    spacing=8,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                *rows,
+            ],
+            spacing=4,
+            tight=True,
+        ),
+        bgcolor=ft.Colors.PURPLE_50,
+        border=ft.Border.all(1.5, ft.Colors.PURPLE_200),
+        border_radius=10,
+        padding=14,
+    )
+
+
 def stat_box(label: str, value: str, good: bool = True) -> ft.Container:
     """Kartu statistik kecil (label + angka) dengan warna baik/peringatan."""
     return ft.Container(
@@ -33,6 +96,7 @@ def stat_box(label: str, value: str, good: bool = True) -> ft.Container:
         bgcolor=ft.Colors.GREEN_50 if good else ft.Colors.AMBER_50,
         border=ft.Border.all(1, ft.Colors.GREEN_200 if good else ft.Colors.AMBER_200),
     )
+
 
 
 def make_snackbar(page: ft.Page):
