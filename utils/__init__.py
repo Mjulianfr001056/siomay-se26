@@ -9,6 +9,7 @@ Submodul:
 from utils.files import (
     ensure_extension,
     file_order_key,
+    open_external_url,
     open_in_explorer,
     save_dialog_options,
     zip_files,
@@ -44,6 +45,7 @@ __all__ = [
     "make_activity_log",
     "make_snackbar",
     "merge_pdfs",
+    "open_external_url",
     "open_in_explorer",
     "save_dialog_options",
     "stat_box",

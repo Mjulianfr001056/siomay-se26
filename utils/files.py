@@ -5,6 +5,7 @@ skrip CLI, maupun notebook.
 """
 import os
 import re
+import webbrowser
 import zipfile
 
 
@@ -55,6 +56,30 @@ def open_in_explorer(path: str):
     target = path if os.path.isdir(path) else os.path.dirname(path)
     if target and os.path.exists(target):
         os.startfile(target)  # Windows
+
+
+def open_external_url(url: str, page=None):
+    """Buka URL di peramban (browser) web bawaan pengguna dengan multi-fallback."""
+    if not url:
+        return
+    # 1. Coba browser default Python
+    try:
+        if webbrowser.open(url):
+            return
+    except Exception:
+        pass
+    # 2. Coba page.launch_url jika tersedia
+    if page is not None:
+        try:
+            page.launch_url(url)
+            return
+        except Exception:
+            pass
+    # 3. Fallback Windows OS startfile
+    try:
+        os.startfile(url)
+    except Exception:
+        pass
 
 
 def save_dialog_options(fmt: str, prefix: str, stamp: str):

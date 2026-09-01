@@ -65,6 +65,7 @@ from utils import (
     make_activity_log,
     make_snackbar,
     merge_pdfs,
+    open_external_url,
     open_in_explorer,
     save_dialog_options,
     stat_box,
@@ -172,8 +173,10 @@ def main(page: ft.Page):
                 spacing=8,
             ),
             actions=[
-                ft.TextButton("Buka GitHub Releases",
-                              on_click=lambda _: page.launch_url(RELEASES_URL)),
+                ft.TextButton(
+                    "Buka GitHub Releases",
+                    on_click=lambda _: (close_dialog(about_dialog), open_external_url(RELEASES_URL, page)),
+                ),
                 ft.TextButton("Tutup", on_click=lambda _: close_dialog(about_dialog)),
             ],
         )
@@ -214,8 +217,10 @@ def main(page: ft.Page):
                 spacing=8,
             ),
             actions=[
-                ft.TextButton("Buka halaman rilis", on_click=lambda _: page.launch_url(
-                    update.release_notes_url)),
+                ft.TextButton(
+                    "Buka halaman rilis",
+                    on_click=lambda _: (close_dialog(update_dialog), open_external_url(update.release_notes_url, page)),
+                ),
                 ft.TextButton("Nanti", on_click=lambda _: close_dialog(update_dialog)),
             ],
         )

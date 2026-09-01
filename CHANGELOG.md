@@ -4,6 +4,22 @@ Semua perubahan penting pada proyek SIOMAY didokumentasikan di berkas ini. Forma
 
 ---
 
+## [v2026.1.2.1-beta.1] - 2026-09-01
+
+### Fitur Baru & Peningkatan UX
+- **Live Counter & Rekap Durasi Langkah 5**:
+  - Penambahan timer aktif (*stopwatch*) berformat `mm:ss` saat proses konversi DOCX ke PDF, pengemasan ZIP, dan penggabungan PDF.
+  - Kartu rekap durasi interaktif beraksen ungu (*lilac*) yang merangkum rincian format keluaran, jumlah berkas, dan waktu proses simpan secara presisi.
+- **Dukungan Pembukaan Tautan Rilis yang Andal**:
+  - Implementasi fungsi `open_external_url` dengan strategi fallback bertingkat (`webbrowser.open` → `page.launch_url` → `os.startfile`) untuk mengatasi isu tombol tautan rilis tidak merespons di lingkungan desktop Windows.
+  - Penutupan otomatis dialog pembaruan/tentang saat pengguna membuka tautan GitHub Releases di peramban web.
+
+### Perbaikan Bug & Stabilitas
+- **Reset State Alur Kerja**: Pembersihan durasi dan komponen kartu ringkasan saat pengguna memilih jenis dokumen baru atau mengulang alur pembuatan dokumen (`restart_workflow`).
+- **Penguatan Unit Test Suite**: Penambahan pengujian otomatis untuk helper durasi waktu (`format_duration`, `format_timer_clock`), komponen kartu UI, dan pengujian fallback pembuka URL browser.
+
+---
+
 ## [v2026.1.1-beta.3] - 2026-08-31
 
 ### Otomatisasi & CI/CD

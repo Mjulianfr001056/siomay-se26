@@ -1,8 +1,11 @@
-"""Unit tests for UI helper routines (duration formatters & components)."""
+"""Unit tests for UI and files helper routines."""
+import os
 import unittest
+from unittest.mock import MagicMock, patch
 
 import flet as ft
 
+from utils.files import open_external_url
 from utils.ui import duration_info_box, format_duration, format_timer_clock
 
 
@@ -42,6 +45,33 @@ class DurationHelperTests(unittest.TestCase):
         self.assertIsInstance(box.content, ft.Column)
         # Column has 1 title row + 2 items rows
         self.assertEqual(len(box.content.controls), 3)
+
+
+class ExternalUrlHelperTests(unittest.TestCase):
+    @patch("webbrowser.open", return_value=True)
+    def test_open_external_url_webbrowser_success(self, mock_webbrowser):
+        open_external_url("https://github.com/example")
+        mock_webbrowser.assert_called_once_with("https://github.com/example")
+
+    @patch("webbrowser.open", side_effect=Exception("Failed"))
+    @patch("os.startfile", create=True)
+    def test_open_external_url_page_fallback(self, mock_startfile, mock_webbrowser):
+        mock_page = MagicMock()
+        open_external_url("https://github.com/example", page=mock_page)
+        mock_page.launch_url.assert_called_once_with("https://github.com/example")
+
+    @patch("webbrowser.open", side_effect=Exception("Failed"))
+    def test_open_external_url_os_startfile_fallback(self, mock_webbrowser):
+        mock_page = MagicMock()
+        mock_page.launch_url.side_effect = Exception("Failed")
+        with patch("os.startfile", create=True) as mock_startfile:
+            open_external_url("https://github.com/example", page=mock_page)
+            mock_startfile.assert_called_once_with("https://github.com/example")
+
+    def test_open_external_url_empty(self):
+        # Should do nothing safely without exception
+        open_external_url("")
+        open_external_url(None)
 
 
 if __name__ == "__main__":
