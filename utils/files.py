@@ -85,7 +85,7 @@ def open_external_url(url: str, page=None):
 def save_dialog_options(fmt: str, prefix: str, stamp: str):
     """Saran nama berkas & daftar ekstensi untuk dialog simpan hasil.
 
-    `fmt` salah satu dari: "zip" | "merged".
+    `fmt` salah satu dari: "zip" | "docx_zip" | "merged".
     Mengembalikan tuple (nama_berkas_saran, [ekstensi]).
     """
     if fmt == "merged":

@@ -4,6 +4,18 @@ Semua perubahan penting pada proyek SIOMAY didokumentasikan di berkas ini. Forma
 
 ---
 
+## [v2026.1.3] - 2026-09-01
+
+### Performa Konversi dan Keluaran
+- **Konversi PDF Batch**: Mengonversi seluruh dokumen DOCX melalui satu proses LibreOffice, sehingga biaya startup LibreOffice tidak lagi berulang untuk setiap dokumen.
+- **Keluaran DOCX Tanpa Konversi**: Menambahkan pilihan arsip ZIP berisi DOCX asli agar hasil generator dapat langsung disimpan tanpa menunggu konversi PDF.
+- **Penanganan Kegagalan Parsial**: Dokumen yang berhasil dikonversi tetap disimpan dan kegagalan individual tetap dilaporkan tanpa mengubah urutan hasil.
+
+### Pengujian
+- Menambahkan pengujian konversi batch yang memastikan beberapa DOCX hanya menjalankan satu subprocess LibreOffice serta memverifikasi urutan hasil dan kegagalan parsial.
+
+---
+
 ## [v2026.1.2.1-beta.1] - 2026-09-01
 
 ### Fitur Baru & Peningkatan UX

@@ -56,7 +56,7 @@ from utils import (
     MERGE_AVAILABLE,
     PDF_AVAILABLE,
     close_window,
-    convert_docx_to_pdf,
+    convert_docx_files_to_pdf,
     duration_info_box,
     ensure_extension,
     file_order_key,
@@ -1800,21 +1800,17 @@ def main(page: ft.Page):
             return
         doc = current_doc()
         is_bukti_terima = doc and doc.group == "Bukti Terima"
-        if is_bukti_terima:
-            # Bukti Terima menghasilkan 1 DOCX multi-halaman
-            if PDF_AVAILABLE:
+        docx_label = (f"Arsip ZIP ({n} dokumen DOCX asli, tanpa konversi)"
+                      if n > 1 else
+                      "Arsip ZIP (1 dokumen DOCX asli, tanpa konversi)")
+        options = [ft.Radio(value="docx_zip", label=docx_label)]
+        if PDF_AVAILABLE:
+            if is_bukti_terima:
                 zip_label = "Arsip ZIP (1 berkas PDF multi-halaman)"
             else:
-                zip_label = ("Arsip ZIP (1 dokumen DOCX multi-halaman)"
-                             " — konversi PDF tidak tersedia")
-        elif PDF_AVAILABLE:
-            # ZIP berisi hasil konversi PDF — satu berkas PDF per petugas
-            zip_label = (f"Arsip ZIP ({n} berkas PDF)" if n > 1
-                         else "Arsip ZIP (1 berkas PDF)")
-        else:
-            zip_label = (f"Arsip ZIP ({n} dokumen DOCX)"
-                         " — konversi PDF tidak tersedia")
-        options = [ft.Radio(value="zip", label=zip_label)]
+                zip_label = (f"Arsip ZIP ({n} berkas PDF)" if n > 1
+                             else "Arsip ZIP (1 berkas PDF)")
+            options.append(ft.Radio(value="zip", label=zip_label))
         if PDF_AVAILABLE and MERGE_AVAILABLE:
             if is_bukti_terima:
                 merged_label = "PDF (1 berkas multi-halaman, siap cetak)"
@@ -1825,18 +1821,20 @@ def main(page: ft.Page):
                 merged_label = "PDF gabungan (siap cetak)"
             options.append(ft.Radio(value="merged", label=merged_label))
         fmt_options_col.controls = options
-        fmt_group.value = "zip"
+        fmt_group.value = "zip" if PDF_AVAILABLE else "docx_zip"
         if is_bukti_terima:
-            hint_zip = ("Berkas DOCX multi-halaman berisi semua petugas "
-                        "dalam grid 2\u00d72 per halaman A4.")
+            hint_zip = ("Pilih DOCX untuk menyimpan langsung tanpa konversi. "
+                        "Dokumen multi-halaman berisi semua petugas dalam grid "
+                        "2\u00d72 per halaman A4.")
         elif PDF_AVAILABLE and not MERGE_AVAILABLE:
-            hint_zip = ("ZIP akan berisi satu berkas PDF untuk setiap petugas "
-                        "(opsi PDF gabungan butuh paket 'pypdf').")
+            hint_zip = ("Pilih DOCX untuk menyimpan langsung, atau PDF per "
+                        "petugas (PDF gabungan butuh paket 'pypdf').")
         elif PDF_AVAILABLE:
-            hint_zip = ("ZIP berisi satu PDF per petugas; pilih 'PDF gabungan' "
-                        "untuk mencetak semuanya dari satu berkas.")
+            hint_zip = ("Pilih DOCX tanpa konversi, PDF per petugas, atau "
+                        "PDF gabungan untuk mencetak dari satu berkas.")
         else:
-            hint_zip = ("ZIP berisi DOCX (LibreOffice bundel tidak ditemukan).")
+            hint_zip = ("DOCX disimpan langsung tanpa konversi "
+                        "(LibreOffice bundel tidak ditemukan).")
         save_info_text.value = (
             f"{n} dokumen '{doc.label}' siap disimpan. "
             f"{hint_zip} Pilih format keluaran lalu klik Simpan."
@@ -1977,14 +1975,13 @@ def main(page: ft.Page):
                 raise RuntimeError(
                     "Penggabungan PDF tidak tersedia — "
                     "install dulu: pip install pypdf")
-            elif fmt == "zip" and not PDF_AVAILABLE:
-                # Tanpa LibreOffice: fallback — isi ZIP dengan DOCX
+            elif fmt == "docx_zip":
+                # Jalur cepat: kemas hasil generator apa adanya tanpa LibreOffice.
                 page.pop_dialog()
                 save_ui_start(
                     f"Mengemas {n_total} dokumen DOCX ke dalam ZIP…")
                 page.update()
-                log("LibreOffice tidak tersedia — konversi PDF dilewati; "
-                    "ZIP diisi dokumen DOCX.", "WARN")
+                log("Konversi PDF dilewati — ZIP diisi dokumen DOCX asli.", "INFO")
                 final = ensure_extension(save_path, "zip")
                 for arcname in await asyncio.to_thread(zip_files, files, final):
                     log(f"    + {arcname}")
@@ -1999,26 +1996,17 @@ def main(page: ft.Page):
                 for i, f in enumerate(files_sorted, start=1):
                     log(f"    {i:02d}. {os.path.basename(f)}")
 
-                # ── Konversi setiap DOCX → satu berkas PDF per petugas ──
+                # ── Konversi batch: satu proses LibreOffice untuk semua DOCX ──
                 tmp_pdf_dir = tempfile.mkdtemp(prefix="gen_pdf_")
-                pdfs, gagal_konversi = [], []
-                for idx, f in enumerate(files_sorted, start=1):
-                    base = os.path.splitext(os.path.basename(f))[0]
-                    pdf_out = os.path.join(tmp_pdf_dir, base + ".pdf")
-                    conv_msg = f"Mengonversi ke PDF: dokumen {idx} dari {n_total}…"
-                    _save_dialog_msg.data = conv_msg
-                    elapsed = time.time() - _save_start_time
-                    _save_dialog_msg.value = f"{conv_msg} ({format_timer_clock(elapsed)})"
-                    log(f"Konversi PDF: {os.path.basename(f)}", "INFO")
-                    page.update()
-                    # Jalankan di worker thread agar UI tetap responsif.
-                    try:
-                        await asyncio.to_thread(
-                            convert_docx_to_pdf, f, pdf_out)
-                        pdfs.append(pdf_out)
-                    except Exception as ex:
-                        gagal_konversi.append(os.path.basename(f))
-                        log(f"    GAGAL dikonversi: {ex}", "ERROR")
+                conv_msg = (f"Mengonversi {n_total} dokumen ke PDF dalam satu "
+                            "proses LibreOffice…")
+                _save_dialog_msg.data = conv_msg
+                _save_dialog_msg.value = conv_msg
+                log(f"Konversi PDF batch dimulai: {n_total} dokumen.", "INFO")
+                page.update()
+                pdfs, failed_paths = await asyncio.to_thread(
+                    convert_docx_files_to_pdf, files_sorted, tmp_pdf_dir)
+                gagal_konversi = [os.path.basename(path) for path in failed_paths]
                 if gagal_konversi:
                     log(f"{len(gagal_konversi)} dokumen gagal dikonversi ke "
                         "PDF dan tidak ikut dalam hasil.", "WARN")
@@ -2114,7 +2102,10 @@ def main(page: ft.Page):
             ]
             if state.get("gen_duration") is not None:
                 dur_items.append(("Waktu pembuatan (generate)", format_duration(state["gen_duration"])))
-            dur_items.append(("Waktu penyimpanan (konversi PDF & simpan)", format_duration(conv_duration)))
+            duration_label = ("Waktu penyimpanan (tanpa konversi PDF)"
+                              if fmt == "docx_zip" else
+                              "Waktu penyimpanan (konversi PDF & simpan)")
+            dur_items.append((duration_label, format_duration(conv_duration)))
             if state.get("gen_duration") is not None:
                 total_duration = state["gen_duration"] + conv_duration
                 dur_items.append(("Total waktu proses", format_duration(total_duration)))
@@ -2128,7 +2119,8 @@ def main(page: ft.Page):
 
             state["saved"] = True      # penanda sesi langkah 5 tuntas
             update_nav()
-            fmt_label = {"zip": "Pengemasan ZIP",
+            fmt_label = {"zip": "Konversi dan pengemasan PDF",
+                         "docx_zip": "Pengemasan DOCX",
                          "merged": "Penggabungan PDF"}.get(fmt, "Penyimpanan")
             show_snackbar(f"{fmt_label} selesai.", ft.Colors.GREEN_700)
         except Exception as ex:
@@ -2353,7 +2345,7 @@ def main(page: ft.Page):
                     on_click=show_about,
                 ),
                 ft.Container(
-                    content=ft.Text(f"{DISPLAY_VERSION} · Pilot", size=11,
+                    content=ft.Text(f"{DISPLAY_VERSION} · {RELEASE_CHANNEL.title()}", size=11,
                                     weight=ft.FontWeight.W_600,
                                     color=ft.Colors.BLUE_800),
                     bgcolor=ft.Colors.BLUE_50, border_radius=20,

@@ -5,8 +5,8 @@
 
 Aplikasi ini dirancang untuk mempercepat proses pembuatan dokumen, mengurangi pekerjaan berulang, dan menjaga konsistensi hasil dokumen.
 
-> Status: **Pilot / Beta**  
-> Versi saat ini: **v2026.1.2.1-beta.1**
+> Status: **Stable**
+> Versi saat ini: **v2026.1.3**
 
 ## Fitur
 
@@ -88,7 +88,7 @@ Build beta memeriksa manifest kanal **beta**, sedangkan build stabil memeriksa k
 
 ## Umpan Balik dan Pelaporan Masalah
 
-Karena SIOMAY masih berada dalam tahap pilot/beta, masukan pengguna sangat penting.
+Masukan pengguna tetap penting untuk membantu peningkatan kualitas SIOMAY.
 
 Saat melaporkan masalah, sertakan:
 
@@ -100,7 +100,7 @@ Saat melaporkan masalah, sertakan:
 
 **Jangan mengirim file Excel, dokumen hasil, atau tangkapan layar yang mengandung data pribadi/sensitif melalui kanal publik.**
 
-Saluran umpan balik akan dicantumkan pada rilis pilot aplikasi.
+Saluran umpan balik dicantumkan pada halaman rilis aplikasi.
 
 ## Privasi Data
 

@@ -71,62 +71,111 @@ except Exception:
     pass
 
 
-def convert_docx_to_pdf(src: str, dst: str):
-    """Konversi satu DOCX ke PDF melalui LibreOffice secara headless."""
+def _windows_subprocess_kwargs():
+    """Kembalikan opsi subprocess agar LibreOffice tidak membuka jendela CMD."""
+    if sys.platform != "win32":
+        return {}
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = subprocess.SW_HIDE
+    return {
+        "creationflags": (
+            subprocess.CREATE_NO_WINDOW
+            if hasattr(subprocess, "CREATE_NO_WINDOW")
+            else 0x08000000
+        ),
+        "startupinfo": startupinfo,
+    }
+
+
+def convert_docx_files_to_pdf(sources, output_dir: str):
+    """Konversi banyak DOCX dengan satu proses LibreOffice.
+
+    Mengembalikan ``(converted, failed)``. ``converted`` adalah daftar jalur PDF
+    dalam urutan input, sedangkan ``failed`` berisi jalur DOCX yang tidak
+    menghasilkan PDF. Nama staging yang pendek mencegah command line Windows
+    menjadi terlalu panjang ketika ratusan dokumen dikonversi sekaligus.
+    """
     soffice = find_libreoffice()
     if soffice is None:
         raise RuntimeError(
             "LibreOffice tidak ditemukan. Ekstrak seluruh isi rilis SIOMAY "
             "(termasuk folder LibreOffice) sebelum mengonversi PDF."
         )
-    source = Path(src).resolve()
-    destination = Path(dst).resolve()
-    if not source.is_file():
-        raise RuntimeError(f"Dokumen sumber tidak ditemukan: {source}")
-    destination.parent.mkdir(parents=True, exist_ok=True)
+    source_paths = [Path(source).resolve() for source in sources]
+    if not source_paths:
+        return [], []
+    for source in source_paths:
+        if not source.is_file():
+            raise RuntimeError(f"Dokumen sumber tidak ditemukan: {source}")
+    destination_dir = Path(output_dir).resolve()
+    destination_dir.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="siomay_lo_profile_") as profile_dir, \
-            tempfile.TemporaryDirectory(prefix="siomay_lo_output_") as output_dir:
+            tempfile.TemporaryDirectory(prefix="siomay_lo_input_") as input_dir, \
+            tempfile.TemporaryDirectory(prefix="siomay_lo_output_") as lo_output_dir:
+        staged_sources = []
+        for index, source in enumerate(source_paths, start=1):
+            staged = Path(input_dir) / f"{index:06d}.docx"
+            shutil.copy2(source, staged)
+            staged_sources.append(staged)
+
         command = [
             str(soffice), "--headless", "--nologo", "--nodefault",
             "--nofirststartwizard",
             f"-env:UserInstallation={Path(profile_dir).resolve().as_uri()}",
-            "--convert-to", "pdf:writer_pdf_Export", "--outdir", output_dir,
-            str(source),
+            "--convert-to", "pdf:writer_pdf_Export", "--outdir", lo_output_dir,
+            *[str(source) for source in staged_sources],
         ]
-
-        # Di Windows, pastikan jendela konsol/CMD tidak muncul sama sekali
-        extra_kwargs = {}
-        if sys.platform == "win32":
-            extra_kwargs["creationflags"] = (
-                subprocess.CREATE_NO_WINDOW
-                if hasattr(subprocess, "CREATE_NO_WINDOW")
-                else 0x08000000
-            )
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            startupinfo.wShowWindow = subprocess.SW_HIDE
-            extra_kwargs["startupinfo"] = startupinfo
 
         try:
             result = subprocess.run(
                 command, check=False, capture_output=True, text=True,
-                encoding="utf-8", errors="replace", timeout=120,
-                **extra_kwargs,
+                encoding="utf-8", errors="replace",
+                timeout=max(120, len(source_paths) * 10),
+                **_windows_subprocess_kwargs(),
             )
         except OSError as ex:
             raise RuntimeError(f"Gagal menjalankan LibreOffice: {ex}") from ex
         except subprocess.TimeoutExpired as ex:
-            raise RuntimeError("Konversi PDF oleh LibreOffice melebihi 120 detik.") from ex
+            raise RuntimeError(
+                "Konversi PDF batch oleh LibreOffice melebihi batas waktu."
+            ) from ex
 
-        converted = Path(output_dir) / f"{source.stem}.pdf"
-        if result.returncode != 0 or not converted.is_file():
+        converted, failed = [], []
+        for source, staged in zip(source_paths, staged_sources):
+            staged_pdf = Path(lo_output_dir) / f"{staged.stem}.pdf"
+            if not staged_pdf.is_file():
+                failed.append(str(source))
+                continue
+            destination = destination_dir / f"{source.stem}.pdf"
+            # Generator semestinya memberi nama unik; hindari overwrite diam-diam.
+            if destination.exists():
+                suffix = 2
+                while (destination_dir / f"{source.stem}_{suffix}.pdf").exists():
+                    suffix += 1
+                destination = destination_dir / f"{source.stem}_{suffix}.pdf"
+            shutil.move(str(staged_pdf), str(destination))
+            converted.append(str(destination))
+
+        if not converted:
             details = (result.stderr or result.stdout).strip()
             suffix = f" Detail LibreOffice: {details}" if details else ""
             raise RuntimeError(
-                f"Gagal mengonversi '{source.name}' ke PDF dengan LibreOffice.{suffix}"
+                f"Tidak ada DOCX yang berhasil dikonversi dengan LibreOffice.{suffix}"
             )
-        shutil.move(str(converted), str(destination))
+        return converted, failed
+
+
+def convert_docx_to_pdf(src: str, dst: str):
+    """Konversi satu DOCX ke PDF melalui LibreOffice secara headless."""
+    destination = Path(dst).resolve()
+    converted, _ = convert_docx_files_to_pdf([src], str(destination.parent))
+    generated = Path(converted[0])
+    if generated != destination:
+        if destination.exists():
+            destination.unlink()
+        shutil.move(str(generated), str(destination))
 
 
 def merge_pdfs(pdf_paths, dst: str):

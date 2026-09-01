@@ -17,6 +17,7 @@ from utils.files import (
 from utils.pdf_tools import (
     MERGE_AVAILABLE,
     PDF_AVAILABLE,
+    convert_docx_files_to_pdf,
     convert_docx_to_pdf,
     merge_pdfs,
 )
@@ -36,6 +37,7 @@ __all__ = [
     "PDF_AVAILABLE",
     "LOG_STYLES",
     "close_window",
+    "convert_docx_files_to_pdf",
     "convert_docx_to_pdf",
     "duration_info_box",
     "ensure_extension",
