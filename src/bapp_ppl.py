@@ -15,32 +15,21 @@ Template DOCX placeholders:
   {{no_urut_bapp_t1}}, {{no_spk}}, {{nama_lengkap}}, {{nik}},
   {{jml_sls_t1}}, {{bukti_dukung_bapp_t1}}
 """
-import io
 import os
 import re
 
 import pandas as pd
-import requests
 from docx import Document
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
-
-try:
-    from PIL import Image, ImageFile
-    ImageFile.LOAD_TRUNCATED_IMAGES = True
-    HAS_PIL = True
-except ImportError:
-    HAS_PIL = False
-
-try:
-    from pillow_heif import register_heif_opener
-    register_heif_opener()
-    HAS_HEIF = True
-except ImportError:
-    HAS_HEIF = False
+from utils.images import (
+    HAS_HEIF,
+    HAS_PIL,
+    download_drive_image as _download_drive_image,
+)
 
 
 # -- Skema input Excel ------------------------------------------------
@@ -208,49 +197,63 @@ def replace_text_preserving_runs(doc: Document, replacements: dict) -> None:
             runs = para.runs
             if not runs:
                 continue
-            full_text = ""
-            char_map = []
-            for ri, run in enumerate(runs):
-                for ci, ch in enumerate(run.text):
-                    char_map.append((ri, ci))
-                    full_text += ch
-            matches = list(re.finditer(r"\{\{[^}]+\}\}", full_text))
-            if not matches:
-                continue
-            for m in reversed(matches):
-                ph = m.group(0)
-                if ph not in replacements:
-                    continue
-                val = str(replacements[ph])
-                start, end = m.start(), m.end()
-                touched = []
-                for ci in range(start, min(end, len(char_map))):
-                    ri = char_map[ci][0]
-                    if not touched or touched[-1] != ri:
-                        touched.append(ri)
-                if not touched:
-                    continue
-                first_ri = touched[0]
-                last_ri = touched[-1]
-                first_run_start = next(
-                    i for i, (ri, _) in enumerate(char_map) if ri == first_ri
+            while True:
+                full_text = "".join(run.text for run in runs)
+                match = next(
+                    (
+                        m
+                        for m in re.finditer(r"\{\{[^}]+\}\}", full_text)
+                        if m.group(0) in replacements
+                    ),
+                    None,
                 )
-                prefix = full_text[first_run_start:start]
-                last_run_end = (
-                    max(i for i, (ri, _) in enumerate(char_map) if ri == last_ri)
-                    + 1
-                )
-                suffix = full_text[end:last_run_end] if end < last_run_end else ""
-                runs[first_ri].text = prefix + val
-                _strip_placeholder_fmt(runs[first_ri])
-                for ri in touched[1:]:
-                    runs[ri].text = suffix if (ri == last_ri and suffix) else ""
+                if match is None:
+                    break
 
-    _process_paragraphs(doc.paragraphs)
-    for table in doc.tables:
+                # Tentukan posisi token pada run berdasarkan teks terkini. Peta
+                # dibangun ulang setiap penggantian agar beberapa token dalam
+                # satu paragraf tetap aman walaupun panjang nilainya berubah.
+                run_starts = []
+                position = 0
+                for run in runs:
+                    run_starts.append(position)
+                    position += len(run.text)
+
+                first_ri = max(
+                    i for i, start in enumerate(run_starts) if start <= match.start()
+                )
+                last_ri = max(
+                    i for i, start in enumerate(run_starts) if start < match.end()
+                )
+                first_offset = match.start() - run_starts[first_ri]
+                last_offset = match.end() - run_starts[last_ri]
+                prefix = runs[first_ri].text[:first_offset]
+                suffix = runs[last_ri].text[last_offset:]
+
+                runs[first_ri].text = (
+                    prefix + str(replacements[match.group(0)]) + suffix
+                )
+                _strip_placeholder_fmt(runs[first_ri])
+                for ri in range(first_ri + 1, last_ri + 1):
+                    runs[ri].text = ""
+
+    def _process_table(table):
         for row in table.rows:
             for cell in row.cells:
                 _process_paragraphs(cell.paragraphs)
+                for nested_table in cell.tables:
+                    _process_table(nested_table)
+
+    _process_paragraphs(doc.paragraphs)
+    for table in doc.tables:
+        _process_table(table)
+    for section in doc.sections:
+        _process_paragraphs(section.header.paragraphs)
+        for table in section.header.tables:
+            _process_table(table)
+        _process_paragraphs(section.footer.paragraphs)
+        for table in section.footer.tables:
+            _process_table(table)
 
 
 def _extract_file_id(link: str):
@@ -268,40 +271,6 @@ def _extract_file_id(link: str):
     if m:
         return m.group(0)
     return None
-
-
-def _download_drive_image(file_id: str):
-    """Unduh gambar dari Google Drive (publik), return (BytesIO, PIL.Image)."""
-    if not HAS_PIL:
-        raise RuntimeError("Pillow tidak terinstal.")
-    url = "https://drive.google.com/uc?export=download"
-    session = requests.Session()
-    response = session.get(
-        url, params={"id": file_id}, stream=True, timeout=30
-    )
-    response.raise_for_status()
-    token = None
-    for key, value in response.cookies.items():
-        if key.startswith("download_warning"):
-            token = value
-            break
-    if token:
-        response = session.get(
-            url,
-            params={"id": file_id, "confirm": token},
-            stream=True,
-            timeout=30,
-        )
-        response.raise_for_status()
-    raw_bytes = response.content
-    img = Image.open(io.BytesIO(raw_bytes))
-    img.load()
-    if img.mode not in ("RGB", "L"):
-        img = img.convert("RGB")
-    png_fh = io.BytesIO()
-    img.save(png_fh, format="PNG")
-    png_fh.seek(0)
-    return png_fh, img
 
 
 def _remove_table_borders(table):
@@ -349,27 +318,17 @@ def insert_gdrive_images(doc: Document, links_str: str,
         placeholder = BUKTI_PLACEHOLDER
     warnings_list = []
 
-    if not HAS_PIL:
-        warnings_list.append("Pillow tidak terinstal - screenshot dilewati.")
-        for p in doc.paragraphs:
-            if placeholder in p.text:
-                for run in p.runs:
-                    if placeholder in run.text:
-                        run.text = run.text.replace(placeholder, "")
-                break
-        return 0, warnings_list
-
-    # Cari paragraf placeholder
-    target_p = None
-    for p in doc.paragraphs:
-        if placeholder in p.text:
-            target_p = p
-            for run in p.runs:
-                if placeholder in run.text:
-                    run.text = run.text.replace(placeholder, "")
-            break
+    # Simpan paragraf jangkar sebelum token dibersihkan. Helper penggantian
+    # mendukung placeholder yang dipecah Word ke beberapa run.
+    target_p = next((p for p in doc.paragraphs if placeholder in p.text), None)
     if target_p is None:
         return 0, ["Template tidak memiliki placeholder " + placeholder]
+    replace_text_preserving_runs(doc, {placeholder: ""})
+
+    if not HAS_PIL:
+        warnings_list.append("Pillow tidak terinstal - screenshot dilewati.")
+        return 0, warnings_list
+
     if not links_str or not str(links_str).strip():
         return 0, []
 
@@ -505,14 +464,13 @@ def iter_generate(dfs: dict, template_path: str, out_dir: str):
 
         replace_text_preserving_runs(doc, replacements)
 
-        # Insert screenshots bukti dukung
-        if link_gd:
-            n_img, img_warnings = insert_gdrive_images(doc, link_gd)
-            if n_img:
-                yield {"t": "log", "level": "INFO",
-                       "msg": f"   {n_img} screenshot disisipkan"}
-            for w in img_warnings:
-                yield {"t": "log", "level": "WARN", "msg": f"   {w}"}
+        # Selalu proses placeholder bukti dukung, termasuk saat tautan kosong.
+        n_img, img_warnings = insert_gdrive_images(doc, link_gd)
+        if n_img:
+            yield {"t": "log", "level": "INFO",
+                   "msg": f"   {n_img} screenshot disisipkan"}
+        for w in img_warnings:
+            yield {"t": "log", "level": "WARN", "msg": f"   {w}"}
 
         # Simpan DOCX
         safe_name = _slug(who)

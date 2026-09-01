@@ -4,6 +4,19 @@ Semua perubahan penting pada proyek SIOMAY didokumentasikan di berkas ini. Forma
 
 ---
 
+## [v2026.1.4] - 2026-09-01
+
+### Dukungan Gambar
+- **Dukungan HEIC/HEIF**: Foto HEIC/HEIF dari Google Drive kini didekode dan dikonversi otomatis menjadi PNG sebelum disisipkan ke dokumen Word.
+- **Orientasi Foto**: Metadata EXIF orientation diterapkan agar foto dari perangkat seluler tidak tampil terbalik atau menyamping.
+- **Validasi Unduhan**: Respons HTML Google Drive, file kosong, dan format gambar yang tidak valid kini menghasilkan peringatan yang lebih jelas tanpa menggagalkan keseluruhan batch.
+
+### Pengujian dan Distribusi
+- Menambahkan pengujian regresi decoding HEIC, kompatibilitas JPEG/PNG, penyisipan gambar ke DOCX, dan penolakan respons HTML.
+- Memastikan codec native `pillow-heif` tersedia di paket portable Windows sebelum aset rilis dibuat.
+
+---
+
 ## [v2026.1.3] - 2026-09-01
 
 ### Performa Konversi dan Keluaran

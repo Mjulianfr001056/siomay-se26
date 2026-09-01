@@ -8,9 +8,9 @@ from src.updates import parse_update_manifest
 
 class ReleaseVersionTests(unittest.TestCase):
     def test_only_newer_numeric_package_versions_are_accepted(self):
-        self.assertFalse(is_newer_package_version("2026.1.3"))
+        self.assertFalse(is_newer_package_version("2026.1.4"))
         self.assertFalse(is_newer_package_version("2026.1.2.1.0.2"))
-        self.assertTrue(is_newer_package_version("2026.1.4"))
+        self.assertTrue(is_newer_package_version("2026.1.5"))
         self.assertTrue(is_newer_package_version("2026.2.0.0"))
         self.assertFalse(is_newer_package_version("invalid"))
 
@@ -35,8 +35,8 @@ class UpdateManifestTests(unittest.TestCase):
 
     def test_current_version_returns_no_update(self):
         update = parse_update_manifest({
-            "display_version": "v2026.1.3",
-            "package_version": "2026.1.3",
+            "display_version": "v2026.1.4",
+            "package_version": "2026.1.4",
             "download_url": "https://github.com/Mjulianfr001056/siomay-se26/releases",
             "release_notes_url": "https://github.com/Mjulianfr001056/siomay-se26/releases",
         })

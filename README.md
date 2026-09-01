@@ -6,7 +6,7 @@
 Aplikasi ini dirancang untuk mempercepat proses pembuatan dokumen, mengurangi pekerjaan berulang, dan menjaga konsistensi hasil dokumen.
 
 > Status: **Stable**
-> Versi saat ini: **v2026.1.3**
+> Versi saat ini: **v2026.1.4**
 
 ## Fitur
 

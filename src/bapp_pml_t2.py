@@ -15,32 +15,21 @@ Template DOCX placeholders:
   {{no_urut_bapp_t2}}, {{no_spk}}, {{nama_lengkap}}, {{nik}},
   {{jml_sls_t2}}, {{bukti_dukung_bapp_t2}}
 """
-import io
 import os
 import re
 
 import pandas as pd
-import requests
 from docx import Document
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
-
-try:
-    from PIL import Image, ImageFile
-    ImageFile.LOAD_TRUNCATED_IMAGES = True
-    HAS_PIL = True
-except ImportError:
-    HAS_PIL = False
-
-try:
-    from pillow_heif import register_heif_opener
-    register_heif_opener()
-    HAS_HEIF = True
-except ImportError:
-    HAS_HEIF = False
+from utils.images import (
+    HAS_HEIF,
+    HAS_PIL,
+    download_drive_image as _download_drive_image,
+)
 
 
 # -- Skema input Excel ------------------------------------------------
@@ -268,40 +257,6 @@ def _extract_file_id(link: str):
     if m:
         return m.group(0)
     return None
-
-
-def _download_drive_image(file_id: str):
-    """Unduh gambar dari Google Drive (publik), return (BytesIO, PIL.Image)."""
-    if not HAS_PIL:
-        raise RuntimeError("Pillow tidak terinstal.")
-    url = "https://drive.google.com/uc?export=download"
-    session = requests.Session()
-    response = session.get(
-        url, params={"id": file_id}, stream=True, timeout=30
-    )
-    response.raise_for_status()
-    token = None
-    for key, value in response.cookies.items():
-        if key.startswith("download_warning"):
-            token = value
-            break
-    if token:
-        response = session.get(
-            url,
-            params={"id": file_id, "confirm": token},
-            stream=True,
-            timeout=30,
-        )
-        response.raise_for_status()
-    raw_bytes = response.content
-    img = Image.open(io.BytesIO(raw_bytes))
-    img.load()
-    if img.mode not in ("RGB", "L"):
-        img = img.convert("RGB")
-    png_fh = io.BytesIO()
-    img.save(png_fh, format="PNG")
-    png_fh.seek(0)
-    return png_fh, img
 
 
 def _remove_table_borders(table):
