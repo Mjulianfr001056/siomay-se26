@@ -46,23 +46,58 @@ def build_values(record: dict) -> dict:
 
 def _iter_paragraphs(doc):
     """Yield every paragraph: body, tables (incl. nested), headers, footers."""
+    def iter_table_paragraphs(tables):
+        for table in tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    yield from cell.paragraphs
+                    yield from iter_table_paragraphs(cell.tables)
+
     for p in doc.paragraphs:
         yield p
-    for table in doc.tables:
-        for trow in table.rows:
-            for cell in trow.cells:
-                for p in cell.paragraphs:
-                    yield p
-                for ntable in cell.tables:
-                    for nrow in ntable.rows:
-                        for ncell in nrow.cells:
-                            for p in ncell.paragraphs:
-                                yield p
+    yield from iter_table_paragraphs(doc.tables)
     for section in doc.sections:
         for p in section.header.paragraphs:
             yield p
+        yield from iter_table_paragraphs(section.header.tables)
         for p in section.footer.paragraphs:
             yield p
+        yield from iter_table_paragraphs(section.footer.tables)
+
+
+def extract_template_placeholders(template_path: str) -> set[str]:
+    """Return all unique ``{{field_name}}`` keys used by a DOCX template.
+
+    This uses the same paragraph traversal as :func:`fill_row`, so validation
+    includes placeholders in document tables, headers, and footers as well as
+    the body. It also works when a placeholder is split across Word runs.
+    """
+    if not HAS_DOCX:
+        raise RuntimeError("python-docx tidak tersedia")
+
+    doc = Document(template_path)
+    placeholders = set()
+    for paragraph in _iter_paragraphs(doc):
+        placeholders.update(PLACEHOLDER_RE.findall(paragraph.text))
+    return placeholders
+
+
+def validate_template_placeholders(
+    template_path: str, expected_placeholders: set[str],
+) -> dict:
+    """Compare a template's placeholders with the expected placeholder set.
+
+    Returns ``is_valid``, plus sorted ``missing`` and ``unexpected`` keys.
+    A valid edited template must retain every placeholder downloaded in Step 2
+    and must not introduce fields that the selected document does not expect.
+    """
+    actual = extract_template_placeholders(template_path)
+    expected = set(expected_placeholders)
+    return {
+        "is_valid": actual == expected,
+        "missing": sorted(expected - actual),
+        "unexpected": sorted(actual - expected),
+    }
 
 
 def _replace_in_paragraph(para, values: dict):

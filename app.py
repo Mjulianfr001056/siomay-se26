@@ -38,8 +38,10 @@ from src.document_generator import (
     PLACEHOLDER_RE,
     build_values,
     copy_template,
+    extract_template_placeholders,
     fill_row,
     slugify,
+    validate_template_placeholders,
 )
 from src.release import (
     APP_FULL_NAME,
@@ -961,9 +963,47 @@ def main(page: ft.Page):
         )
         if not files:
             return
-        state["template_path"] = files[0].path
+        path = files[0].path
+        doc = current_doc()
+        if doc and doc.builtin_template_path:
+            try:
+                expected_placeholders = extract_template_placeholders(
+                    doc.builtin_template_path
+                )
+                validation = validate_template_placeholders(
+                    path, expected_placeholders
+                )
+            except Exception as ex:
+                log(f"Gagal memvalidasi template dokumen: {ex}", "ERROR")
+                show_snackbar(
+                    f"Template tidak dapat divalidasi: {ex}", ft.Colors.RED_700
+                )
+                return
+
+            if not validation["is_valid"]:
+                details = []
+                if validation["missing"]:
+                    details.append(
+                        "penanda wajib hilang: "
+                        + ", ".join(
+                            f"{{{{{key}}}}}" for key in validation["missing"]
+                        )
+                    )
+                if validation["unexpected"]:
+                    details.append(
+                        "penanda tidak dikenal: "
+                        + ", ".join(
+                            f"{{{{{key}}}}}" for key in validation["unexpected"]
+                        )
+                    )
+                message = "Template ditolak — " + "; ".join(details) + "."
+                log(message, "WARN")
+                show_snackbar(message, ft.Colors.RED_700)
+                return
+
+        state["template_path"] = path
         state["template_source"] = "unggahan"
-        name = os.path.basename(files[0].path)
+        name = os.path.basename(path)
         tpl_status_chip.value = f"{name}  (unggahan Anda)"
         tpl_status_chip.color = ft.Colors.GREY_900
         log(f"Template dokumen diunggah: {name}", "OK")
