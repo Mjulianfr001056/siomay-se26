@@ -1,6 +1,6 @@
-"""Generator Surat Pernyataan Penyelesaian (SPP) Termin II.
+"""Generator Surat Pernyataan Penyelesaian (SPP) termin 2.
 
-The supplied Termin II workbook has one data sheet.  Its identity fields are
+The supplied termin 2 workbook has one data sheet.  Its identity fields are
 validated explicitly; any additional field used by the selected Word template
 must be provided as a column bearing the same name.
 """
@@ -45,7 +45,7 @@ def _template_fields(template_path: str) -> set[str]:
 
 
 def validate_input(file_path: str, template_path: str | None = None):
-    """Validate the Termin II SPP workbook and optional template field mapping."""
+    """Validate the termin 2 SPP workbook and optional template field mapping."""
     try:
         with pd.ExcelFile(file_path) as workbook:
             if SHEET_NAME not in workbook.sheet_names:
@@ -77,7 +77,7 @@ def validate_input(file_path: str, template_path: str | None = None):
 
 
 def iter_generate(kind: str, dfs: dict, template_path: str, out_dir: str):
-    """Generate one SPP Termin II DOCX per row for the selected officer role."""
+    """Generate one SPP termin 2 DOCX per row for the selected officer role."""
     df = dfs.get(SHEET_NAME)
     if df is None or df.empty:
         yield {"t": "log", "level": "ERROR", "msg": "Sheet 'input' kosong atau tidak ada."}
@@ -88,7 +88,7 @@ def iter_generate(kind: str, dfs: dict, template_path: str, out_dir: str):
     generated = []
     role = kind.upper()
     total = len(df)
-    yield {"t": "log", "level": "STEP", "msg": f"Memproses {total} SPP Termin II {role}..."}
+    yield {"t": "log", "level": "STEP", "msg": f"Memproses {total} SPP termin 2 {role}..."}
 
     for index, row in df.iterrows():
         nik = _norm(row.get("nik", ""))

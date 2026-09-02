@@ -87,9 +87,9 @@ STEP_DEFS = [
 DOC_ICONS = {
     "Lampiran SPK": ft.Icons.DESCRIPTION_ROUNDED,
     "BAPP Termin 1": ft.Icons.FACT_CHECK_OUTLINED,
-    "SPP": ft.Icons.ASSIGNMENT_RETURNED_ROUNDED,
+    "SPP Termin 1": ft.Icons.ASSIGNMENT_RETURNED_ROUNDED,
     "BAPP Termin 2": ft.Icons.FACT_CHECK_OUTLINED,
-    "SPP Termin II": ft.Icons.ASSIGNMENT_RETURNED_ROUNDED,
+    "SPP Termin 2": ft.Icons.ASSIGNMENT_RETURNED_ROUNDED,
     "BAST": ft.Icons.HANDSHAKE_OUTLINED,
     "Bukti Terima": ft.Icons.RECEIPT_LONG_ROUNDED,
 }
@@ -508,9 +508,9 @@ def main(page: ft.Page):
         elif doc and doc.group == "BAPP Termin 2":
             bapp_mod = bapp_ppl_t2 if doc.kind == "ppl" else bapp_pml_t2
             ok, errors, dfs = bapp_mod.validate_input(path)
-        elif doc and doc.group == "SPP":
+        elif doc and doc.group == "SPP Termin 1":
             ok, errors, dfs = spp.validate_input(path)
-        elif doc and doc.group == "SPP Termin II":
+        elif doc and doc.group == "SPP Termin 2":
             ok, errors, dfs = spp_t2.validate_input(path)
         elif doc and doc.group == "BAST":
             ok, errors, dfs = bast.validate_input(path)
@@ -644,7 +644,7 @@ def main(page: ft.Page):
             page.update()
             return
 
-        if doc and doc.group == "SPP":
+        if doc and doc.group == "SPP Termin 1":
             # Ringkasan khusus format SPP
             df_mitra = dfs.get(spp.SHEET_DATA_MITRA)
             n_ppl = 0
@@ -677,7 +677,7 @@ def main(page: ft.Page):
                 ),
             ]
             verify_area.visible = True
-            data_file_chip.value = f"{name} \u2014 SPP {role_label}"
+            data_file_chip.value = f"{name} \u2014 SPP Termin 1 {role_label}"
             data_file_chip.color = ft.Colors.GREY_900
             log(f"Data diverifikasi: {name} \u2192 VALID "
                 f"(PPL: {n_ppl}, PML: {n_pml})", "OK")
@@ -685,7 +685,7 @@ def main(page: ft.Page):
             page.update()
             return
 
-        if doc and doc.group == "SPP Termin II":
+        if doc and doc.group == "SPP Termin 2":
             df_spp_t2 = dfs.get(spp_t2.SHEET_NAME)
             n_rows = len(df_spp_t2) if df_spp_t2 is not None else 0
             role_label = "PPL" if doc.kind == "ppl" else "PML"
@@ -702,7 +702,7 @@ def main(page: ft.Page):
                 ),
             ]
             verify_area.visible = True
-            data_file_chip.value = f"{name} — SPP Termin II {role_label}"
+            data_file_chip.value = f"{name} — SPP Termin 2 {role_label}"
             data_file_chip.color = ft.Colors.GREY_900
             log(f"Data diverifikasi: {name} → VALID ({n_rows} baris)", "OK")
             update_nav()
@@ -1275,11 +1275,11 @@ def main(page: ft.Page):
             df_input = state["dfs"].get(bapp_pml_t2.SHEET_NAME)
             n_rows = len(df_input) if df_input is not None else 0
             extra = f" ({n_rows} petugas PML)"
-        elif doc.group == "SPP":
+        elif doc.group == "SPP Termin 1":
             df_mitra = state["dfs"].get(spp.SHEET_DATA_MITRA)
             n_total = len(df_mitra) if df_mitra is not None else 0
             extra = f" ({n_total} petugas total)"
-        elif doc.group == "SPP Termin II":
+        elif doc.group == "SPP Termin 2":
             df_input = state["dfs"].get(spp_t2.SHEET_NAME)
             n_rows = len(df_input) if df_input is not None else 0
             extra = f" ({n_rows} petugas {doc.kind.upper()})"
@@ -1660,7 +1660,7 @@ def main(page: ft.Page):
             _gen_ui_finish()
 
     async def generate_spp_t2():
-        """Populasi SPP Termin II untuk PPL atau PML."""
+        """Populasi SPP Termin 2 untuk PPL atau PML."""
         _gen_ui_start()
         gen_status.value = "Menyiapkan populasi dokumen…"
         page.update()
@@ -1669,7 +1669,7 @@ def main(page: ft.Page):
         kind = doc.kind
         out_dir = tempfile.mkdtemp(prefix="gen_spp_t2_")
         log("=" * 46, "STEP")
-        log(f"MEMULAI GENERATE — SPP Termin II {kind.upper()}", "STEP")
+        log(f"MEMULAI GENERATE — SPP Termin 2 {kind.upper()}", "STEP")
         log(f"Template : {os.path.basename(state['template_path'])}", "INFO")
         log(f"Data     : {os.path.basename(state['file_path'])}", "INFO")
 
@@ -1820,13 +1820,13 @@ def main(page: ft.Page):
                 await generate_bapp_pml_t2()
             return
 
-        # ── Jalur khusus: grup SPP ────────────────
-        if doc and doc.group == "SPP":
+        # ── Jalur khusus: grup SPP Termin 1 ────────────────
+        if doc and doc.group == "SPP Termin 1":
             await generate_spp()
             return
 
-        # ── Jalur khusus: grup SPP Termin II ────────────────
-        if doc and doc.group == "SPP Termin II":
+        # ── Jalur khusus: grup SPP Termin 2 ────────────────
+        if doc and doc.group == "SPP Termin 2":
             await generate_spp_t2()
             return
 

@@ -8,6 +8,7 @@ import pandas as pd
 from docx import Document
 
 from src import spp
+from src.workflow import get_document_by_id
 
 
 def _document_xml_text(path):
@@ -20,6 +21,12 @@ def _document_xml_text(path):
 
 
 class SppTermin1InputNameTests(unittest.TestCase):
+    def test_catalog_labels_first_spp_as_termin_1(self):
+        self.assertEqual(get_document_by_id("spp_ppl").label, "SPP PPL Termin 1")
+        self.assertEqual(get_document_by_id("spp_ppl").group, "SPP Termin 1")
+        self.assertEqual(get_document_by_id("spp_pml").label, "SPP PML Termin 1")
+        self.assertEqual(get_document_by_id("spp_pml").group, "SPP Termin 1")
+
     def test_generator_uses_no_input_spp_t1_for_its_matching_placeholder(self):
         with tempfile.TemporaryDirectory() as directory:
             template_path = os.path.join(directory, "template.docx")

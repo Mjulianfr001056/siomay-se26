@@ -100,14 +100,14 @@ DOCUMENT_TYPES = [
         "Berita Acara Pemeriksaan Hasil Pekerjaan untuk PML",
     ),
     DocumentType(
-        "spp_ppl", "SPP PPL", "SPP",
+        "spp_ppl", "SPP PPL Termin 1", "SPP Termin 1",
         "SPP_PPL", "02. Template SPP PPL.docx",
-        "Surat Pernyataan Penyelesaian untuk Petugas Lapangan (PPL)",
+        "Surat Pernyataan Penyelesaian Termin 1 untuk Petugas Lapangan (PPL)",
     ),
     DocumentType(
-        "spp_pml", "SPP PML", "SPP",
+        "spp_pml", "SPP PML Termin 1", "SPP Termin 1",
         "SPP_PML", "02. Template SPP PML.docx",
-        "Surat Pernyataan Penyelesaian untuk Pemeriksa Lapangan (PML)",
+        "Surat Pernyataan Penyelesaian Termin 1 untuk Pemeriksa Lapangan (PML)",
     ),
     DocumentType(
         "bapp_ppl_t2", "BAPP PPL Termin 2", "BAPP Termin 2",
@@ -120,14 +120,14 @@ DOCUMENT_TYPES = [
         "Berita Acara Pemeriksaan Hasil Pekerjaan untuk PML (Termin II)",
     ),
     DocumentType(
-        "spp_t2_ppl", "SPP PPL Termin II", "SPP Termin II",
+        "spp_t2_ppl", "SPP PPL Termin 2", "SPP Termin 2",
         "SPP_PPL_Termin2", "04. Template SPP T2 PPL.docx",
-        "Surat Pernyataan Penyelesaian Termin II untuk Petugas Lapangan (PPL)",
+        "Surat Pernyataan Penyelesaian Termin 2 untuk Petugas Lapangan (PPL)",
     ),
     DocumentType(
-        "spp_t2_pml", "SPP PML Termin II", "SPP Termin II",
+        "spp_t2_pml", "SPP PML Termin 2", "SPP Termin 2",
         "SPP_PML_Termin2", "04. Template SPP T2 PML.docx",
-        "Surat Pernyataan Penyelesaian Termin II untuk Pemeriksa Lapangan (PML)",
+        "Surat Pernyataan Penyelesaian Termin 2 untuk Pemeriksa Lapangan (PML)",
     ),
     DocumentType(
         "bast_ppl", "BAST PPL", "BAST",

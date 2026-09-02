@@ -16,12 +16,12 @@ SIOMAY mendukung pembuatan dokumen berikut:
 - Lampiran SPK PML
 - BAPP PPL Termin 1
 - BAPP PML Termin 1
-- SPP PPL
-- SPP PML
+- SPP PPL Termin 1
+- SPP PML Termin 1
 - BAPP PPL Termin 2
 - BAPP PML Termin 2
-- SPP PPL Termin II
-- SPP PML Termin II
+- SPP PPL Termin 2
+- SPP PML Termin 2
 - BAST PPL
 - BAST PML
 

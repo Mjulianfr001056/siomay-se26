@@ -1,4 +1,4 @@
-"""Regression tests for SPP Termin II catalog and generator integration."""
+"""Regression tests for SPP Termin 2 catalog and generator integration."""
 import os
 import tempfile
 import unittest
@@ -29,6 +29,10 @@ class SppTermin2WorkflowTests(unittest.TestCase):
         ids = [doc.id for doc in DOCUMENT_TYPES]
         self.assertLess(ids.index("spp_t2_ppl"), ids.index("bast_ppl"))
         self.assertLess(ids.index("spp_t2_pml"), ids.index("bast_pml"))
+        self.assertEqual(get_document_by_id("spp_t2_ppl").label, "SPP PPL Termin 2")
+        self.assertEqual(get_document_by_id("spp_t2_ppl").group, "SPP Termin 2")
+        self.assertEqual(get_document_by_id("spp_t2_pml").label, "SPP PML Termin 2")
+        self.assertEqual(get_document_by_id("spp_t2_pml").group, "SPP Termin 2")
         self.assertEqual(
             get_document_by_id("spp_t2_ppl").template_filename,
             "04. Template SPP T2 PPL.docx",
