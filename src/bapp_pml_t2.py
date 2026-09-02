@@ -170,13 +170,9 @@ def replace_text_preserving_runs(doc: Document, replacements: dict) -> None:
     """
     Ganti placeholder {{key}} sambil mempertahankan formatting tiap run.
 
-    Pendekatan:
-    1. Bangun peta karakter: char_idx -> (run_idx, offset).
-    2. Temukan span placeholder di full_text.
-    3. Per placeholder (dari kanan ke kiri agar indeks tidak bergeser):
-       - Tulis nilai ke run pertama yang menyentuh span.
-       - Bersihkan teks dari run-run lain dalam span.
-       - Hapus warna editorial (biru/merah) dan underline dari run placeholder.
+    Posisi run dihitung ulang setelah setiap penggantian agar placeholder yang
+    terpecah antar-run dan beberapa placeholder dalam satu paragraf tetap aman.
+    Warna editorial (biru/merah) dan underline pada run placeholder dihapus.
     """
 
     def _strip_placeholder_fmt(run):
@@ -197,49 +193,63 @@ def replace_text_preserving_runs(doc: Document, replacements: dict) -> None:
             runs = para.runs
             if not runs:
                 continue
-            full_text = ""
-            char_map = []
-            for ri, run in enumerate(runs):
-                for ci, ch in enumerate(run.text):
-                    char_map.append((ri, ci))
-                    full_text += ch
-            matches = list(re.finditer(r"\{\{[^}]+\}\}", full_text))
-            if not matches:
-                continue
-            for m in reversed(matches):
-                ph = m.group(0)
-                if ph not in replacements:
-                    continue
-                val = str(replacements[ph])
-                start, end = m.start(), m.end()
-                touched = []
-                for ci in range(start, min(end, len(char_map))):
-                    ri = char_map[ci][0]
-                    if not touched or touched[-1] != ri:
-                        touched.append(ri)
-                if not touched:
-                    continue
-                first_ri = touched[0]
-                last_ri = touched[-1]
-                first_run_start = next(
-                    i for i, (ri, _) in enumerate(char_map) if ri == first_ri
+            while True:
+                full_text = "".join(run.text for run in runs)
+                match = next(
+                    (
+                        m
+                        for m in re.finditer(r"\{\{[^}]+\}\}", full_text)
+                        if m.group(0) in replacements
+                    ),
+                    None,
                 )
-                prefix = full_text[first_run_start:start]
-                last_run_end = (
-                    max(i for i, (ri, _) in enumerate(char_map) if ri == last_ri)
-                    + 1
-                )
-                suffix = full_text[end:last_run_end] if end < last_run_end else ""
-                runs[first_ri].text = prefix + val
-                _strip_placeholder_fmt(runs[first_ri])
-                for ri in touched[1:]:
-                    runs[ri].text = suffix if (ri == last_ri and suffix) else ""
+                if match is None:
+                    break
 
-    _process_paragraphs(doc.paragraphs)
-    for table in doc.tables:
+                # Bangun ulang posisi run setiap selesai mengganti token. Ini
+                # menjaga teks sebelum/sesudah token dan beberapa placeholder
+                # dalam satu paragraf walaupun panjang penggantinya berbeda.
+                run_starts = []
+                position = 0
+                for run in runs:
+                    run_starts.append(position)
+                    position += len(run.text)
+
+                first_ri = max(
+                    i for i, start in enumerate(run_starts) if start <= match.start()
+                )
+                last_ri = max(
+                    i for i, start in enumerate(run_starts) if start < match.end()
+                )
+                first_offset = match.start() - run_starts[first_ri]
+                last_offset = match.end() - run_starts[last_ri]
+                prefix = runs[first_ri].text[:first_offset]
+                suffix = runs[last_ri].text[last_offset:]
+
+                runs[first_ri].text = (
+                    prefix + str(replacements[match.group(0)]) + suffix
+                )
+                _strip_placeholder_fmt(runs[first_ri])
+                for ri in range(first_ri + 1, last_ri + 1):
+                    runs[ri].text = ""
+
+    def _process_table(table):
         for row in table.rows:
             for cell in row.cells:
                 _process_paragraphs(cell.paragraphs)
+                for nested_table in cell.tables:
+                    _process_table(nested_table)
+
+    _process_paragraphs(doc.paragraphs)
+    for table in doc.tables:
+        _process_table(table)
+    for section in doc.sections:
+        _process_paragraphs(section.header.paragraphs)
+        for table in section.header.tables:
+            _process_table(table)
+        _process_paragraphs(section.footer.paragraphs)
+        for table in section.footer.tables:
+            _process_table(table)
 
 
 def _extract_file_id(link: str):
@@ -304,27 +314,17 @@ def insert_gdrive_images(doc: Document, links_str: str,
         placeholder = BUKTI_PLACEHOLDER
     warnings_list = []
 
-    if not HAS_PIL:
-        warnings_list.append("Pillow tidak terinstal - screenshot dilewati.")
-        for p in doc.paragraphs:
-            if placeholder in p.text:
-                for run in p.runs:
-                    if placeholder in run.text:
-                        run.text = run.text.replace(placeholder, "")
-                break
-        return 0, warnings_list
-
-    # Cari paragraf placeholder
-    target_p = None
-    for p in doc.paragraphs:
-        if placeholder in p.text:
-            target_p = p
-            for run in p.runs:
-                if placeholder in run.text:
-                    run.text = run.text.replace(placeholder, "")
-            break
+    # Simpan paragraf jangkar sebelum token dibersihkan. Penggantian melalui
+    # helper juga menangani token yang dipecah Word menjadi beberapa run.
+    target_p = next((p for p in doc.paragraphs if placeholder in p.text), None)
     if target_p is None:
         return 0, ["Template tidak memiliki placeholder " + placeholder]
+    replace_text_preserving_runs(doc, {placeholder: ""})
+
+    if not HAS_PIL:
+        warnings_list.append("Pillow tidak terinstal - screenshot dilewati.")
+        return 0, warnings_list
+
     if not links_str or not str(links_str).strip():
         return 0, []
 
@@ -460,14 +460,14 @@ def iter_generate(dfs: dict, template_path: str, out_dir: str):
 
         replace_text_preserving_runs(doc, replacements)
 
-        # Insert screenshots bukti dukung
-        if link_gd:
-            n_img, img_warnings = insert_gdrive_images(doc, link_gd)
-            if n_img:
-                yield {"t": "log", "level": "INFO",
-                       "msg": f"   {n_img} screenshot disisipkan"}
-            for w in img_warnings:
-                yield {"t": "log", "level": "WARN", "msg": f"   {w}"}
+        # Selalu proses placeholder bukti dukung, termasuk saat tautan kosong,
+        # agar token template tidak tertinggal pada dokumen hasil.
+        n_img, img_warnings = insert_gdrive_images(doc, link_gd)
+        if n_img:
+            yield {"t": "log", "level": "INFO",
+                   "msg": f"   {n_img} screenshot disisipkan"}
+        for w in img_warnings:
+            yield {"t": "log", "level": "WARN", "msg": f"   {w}"}
 
         # Simpan DOCX
         safe_name = _slug(who)
