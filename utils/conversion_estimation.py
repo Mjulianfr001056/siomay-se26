@@ -9,7 +9,7 @@ CONVERSION_BENCHMARKS: dict[str, tuple[int, int]] = {
     "lampiran_spk_ppl": (6, 24),
     "lampiran_spk_pml": (2, 8),
     "bapp_ppl_t1": (299, 290),
-    "bapp_ppl_t2": (299, 290),
+    "bapp_ppl_t2": (6, 26),
     "bapp_pml_t1": (47, 47),
     "bapp_pml_t2": (47, 47),
     "bast_ppl": (299, 426),

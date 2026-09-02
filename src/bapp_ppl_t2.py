@@ -122,6 +122,17 @@ def _norm(v) -> str:
     return str(v).strip()
 
 
+def _format_no_urut_bapp_t2(v) -> str:
+    """Pertahankan nomor urut BAPP T2 sebagai tiga digit (mis. ``001``).
+
+    Excel dapat menyimpan masukan/format tampilan ``001`` sebagai angka ``1``.
+    Setelah dibaca pandas, informasi nol di depannya tidak lagi tersedia, jadi
+    nomor urut numerik dinormalisasi kembali menjadi sedikitnya tiga digit.
+    """
+    value = _norm(v)
+    return value.zfill(3) if value.isdigit() else value
+
+
 def generate_input_template(file_path: str):
     """Buat template Excel input BAPP T1 PML (sample data)."""
     import openpyxl
@@ -155,7 +166,7 @@ def generate_input_template(file_path: str):
         "nik": "6304xxxx",
         "nama_lengkap": "Nama Petugas",
         "no_spk": "B-001/SPK-PML-SE2026/6304/PL.200/2026",
-        "no_urut_bapp_t2": "1",
+        "no_urut_bapp_t2": "001",
         "jml_sls_t2": "12",
         "bukti_dukung_bapp_t2": "https://drive.google.com/open?id=XXXXX",
     }
@@ -520,6 +531,8 @@ def iter_generate(dfs: dict, template_path: str, out_dir: str,
         replacements = {}
         for ph_key, input_col in PLACEHOLDER_MAP.items():
             val = _norm(row.get(input_col, ""))
+            if input_col == "no_urut_bapp_t2":
+                val = _format_no_urut_bapp_t2(val)
             replacements["{{" + ph_key + "}}"] = val
 
         replace_text_preserving_runs(doc, replacements)

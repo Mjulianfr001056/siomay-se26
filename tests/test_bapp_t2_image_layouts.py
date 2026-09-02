@@ -32,6 +32,15 @@ def _document_with_placeholder(module):
 
 
 class BappTermin2ImageLayoutTests(unittest.TestCase):
+    def test_bapp_sequence_number_preserves_three_digit_form(self):
+        for module in MODULES:
+            with self.subTest(module=module.__name__):
+                self.assertEqual(module._format_no_urut_bapp_t2("001"), "001")
+                # Excel commonly stores a displayed 001 as numeric 1.
+                self.assertEqual(module._format_no_urut_bapp_t2(1), "001")
+                self.assertEqual(module._format_no_urut_bapp_t2("21"), "021")
+                self.assertEqual(module._format_no_urut_bapp_t2("AB-1"), "AB-1")
+
     def test_dedicated_pages_insert_every_image_without_grid(self):
         links = ",".join(
             f"https://drive.google.com/file/d/image-{number}/view"
