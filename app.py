@@ -24,6 +24,7 @@ from src import bapp_ppl
 from src import bapp_pml_t2
 from src import bapp_ppl_t2
 from src import spp
+from src import spp_t2
 from src import bast
 from src import bukti_terima
 from src.validator import validate_excel_file, analyze_nulls
@@ -88,6 +89,7 @@ DOC_ICONS = {
     "BAPP Termin 1": ft.Icons.FACT_CHECK_OUTLINED,
     "SPP": ft.Icons.ASSIGNMENT_RETURNED_ROUNDED,
     "BAPP Termin 2": ft.Icons.FACT_CHECK_OUTLINED,
+    "SPP Termin II": ft.Icons.ASSIGNMENT_RETURNED_ROUNDED,
     "BAST": ft.Icons.HANDSHAKE_OUTLINED,
     "Bukti Terima": ft.Icons.RECEIPT_LONG_ROUNDED,
 }
@@ -508,6 +510,8 @@ def main(page: ft.Page):
             ok, errors, dfs = bapp_mod.validate_input(path)
         elif doc and doc.group == "SPP":
             ok, errors, dfs = spp.validate_input(path)
+        elif doc and doc.group == "SPP Termin II":
+            ok, errors, dfs = spp_t2.validate_input(path)
         elif doc and doc.group == "BAST":
             ok, errors, dfs = bast.validate_input(path)
         elif doc and doc.group == "Bukti Terima":
@@ -677,6 +681,30 @@ def main(page: ft.Page):
             data_file_chip.color = ft.Colors.GREY_900
             log(f"Data diverifikasi: {name} \u2192 VALID "
                 f"(PPL: {n_ppl}, PML: {n_pml})", "OK")
+            update_nav()
+            page.update()
+            return
+
+        if doc and doc.group == "SPP Termin II":
+            df_spp_t2 = dfs.get(spp_t2.SHEET_NAME)
+            n_rows = len(df_spp_t2) if df_spp_t2 is not None else 0
+            role_label = "PPL" if doc.kind == "ppl" else "PML"
+            verify_area.controls = [
+                ft.Row(
+                    [
+                        stat_box(f"Total {role_label}", str(n_rows), good=n_rows > 0),
+                        stat_box("Sheet", spp_t2.SHEET_NAME, good=True),
+                        stat_box("Kolom input",
+                                 str(len(df_spp_t2.columns)) if df_spp_t2 is not None else "0",
+                                 good=df_spp_t2 is not None),
+                    ],
+                    spacing=10,
+                ),
+            ]
+            verify_area.visible = True
+            data_file_chip.value = f"{name} — SPP Termin II {role_label}"
+            data_file_chip.color = ft.Colors.GREY_900
+            log(f"Data diverifikasi: {name} → VALID ({n_rows} baris)", "OK")
             update_nav()
             page.update()
             return
@@ -1251,6 +1279,10 @@ def main(page: ft.Page):
             df_mitra = state["dfs"].get(spp.SHEET_DATA_MITRA)
             n_total = len(df_mitra) if df_mitra is not None else 0
             extra = f" ({n_total} petugas total)"
+        elif doc.group == "SPP Termin II":
+            df_input = state["dfs"].get(spp_t2.SHEET_NAME)
+            n_rows = len(df_input) if df_input is not None else 0
+            extra = f" ({n_rows} petugas {doc.kind.upper()})"
         elif doc.group == "BAST":
             df_mitra_b = state["dfs"].get(bast.SHEET_NAME)
             n_target = 0
@@ -1627,6 +1659,51 @@ def main(page: ft.Page):
         finally:
             _gen_ui_finish()
 
+    async def generate_spp_t2():
+        """Populasi SPP Termin II untuk PPL atau PML."""
+        _gen_ui_start()
+        gen_status.value = "Menyiapkan populasi dokumen…"
+        page.update()
+
+        doc = current_doc()
+        kind = doc.kind
+        out_dir = tempfile.mkdtemp(prefix="gen_spp_t2_")
+        log("=" * 46, "STEP")
+        log(f"MEMULAI GENERATE — SPP Termin II {kind.upper()}", "STEP")
+        log(f"Template : {os.path.basename(state['template_path'])}", "INFO")
+        log(f"Data     : {os.path.basename(state['file_path'])}", "INFO")
+
+        try:
+            for ev in spp_t2.iter_generate(
+                    kind, state["dfs"], state["template_path"], out_dir):
+                t = ev.get("t")
+                if t == "log":
+                    log(ev["msg"], ev.get("level", "INFO"))
+                elif t == "file":
+                    state["generated_files"].append(ev["path"])
+                elif t == "progress":
+                    total = max(ev.get("total", 1), 1)
+                    gen_progress.max = total
+                    gen_progress.value = ev.get("done", 0) / total
+                    gen_status.value = (
+                        f"Mengisi dokumen {ev.get('done', 0)} dari {total}…")
+                    page.update()
+                    await asyncio.sleep(0)
+                elif t == "done":
+                    state["generated_files"] = list(ev.get("generated", []))
+
+            n_ok = len(state["generated_files"])
+            state["generation_done"] = n_ok > 0
+            gen_progress.value = 1
+            gen_status.value = f"Selesai: {n_ok} dokumen berhasil dibuat."
+            log(f"GENERATE SELESAI — {n_ok} dokumen.", "OK" if n_ok else "ERROR")
+            log(f"Folder output: {out_dir}", "INFO")
+        except Exception as ex:
+            gen_status.value = f"Generasi gagal: {ex}"
+            log(f"Generasi gagal: {ex}", "ERROR")
+        finally:
+            _gen_ui_finish()
+
     async def generate_bast():
         """Populasi BAST (PPL & PML) -- Berita Acara Serah Terima."""
         _gen_ui_start()
@@ -1746,6 +1823,11 @@ def main(page: ft.Page):
         # ── Jalur khusus: grup SPP ────────────────
         if doc and doc.group == "SPP":
             await generate_spp()
+            return
+
+        # ── Jalur khusus: grup SPP Termin II ────────────────
+        if doc and doc.group == "SPP Termin II":
+            await generate_spp_t2()
             return
 
         # ── Jalur khusus: grup BAST ────────────────

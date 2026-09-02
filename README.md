@@ -20,6 +20,8 @@ SIOMAY mendukung pembuatan dokumen berikut:
 - SPP PML
 - BAPP PPL Termin 2
 - BAPP PML Termin 2
+- SPP PPL Termin II
+- SPP PML Termin II
 - BAST PPL
 - BAST PML
 

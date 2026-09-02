@@ -16,9 +16,10 @@ INPUT_BAPP_T1_PML = os.path.join(INPUT_DIR, "01_input_bapp_t1_pml.xlsx")
 INPUT_BAPP_T1_PPL = os.path.join(INPUT_DIR, "01_input_bapp_t1_ppl.xlsx")
 INPUT_BAPP_T2_PML = os.path.join(INPUT_DIR, "03_input_bapp_pml_t2.xlsx")
 INPUT_BAPP_T2_PPL = os.path.join(INPUT_DIR, "03_input_bapp_ppl_t2.xlsx")
-INPUT_SPP = os.path.join(INPUT_DIR, "02_input_spp.xlsx")
-INPUT_BAST = os.path.join(INPUT_DIR, "04_input_bast.xlsx")
-INPUT_BUKTI_TERIMA = os.path.join(INPUT_DIR, "05_input_bukti_terima_paket_internet.xlsx")
+INPUT_SPP_T1 = os.path.join(INPUT_DIR, "02_input_spp_t1.xlsx")
+INPUT_SPP_T2 = os.path.join(INPUT_DIR, "04_input_spp_t2.xlsx")
+INPUT_BAST = os.path.join(INPUT_DIR, "05_input_bast.xlsx")
+INPUT_BUKTI_TERIMA = os.path.join(INPUT_DIR, "06_input_bukti_terima_paket_internet.xlsx")
 
 
 class DocumentType:
@@ -65,7 +66,9 @@ class DocumentType:
         elif self.id == "bapp_ppl_t2":
             path = INPUT_BAPP_T2_PPL
         elif self.id in ("spp_ppl", "spp_pml"):
-            path = INPUT_SPP
+            path = INPUT_SPP_T1
+        elif self.id in ("spp_t2_ppl", "spp_t2_pml"):
+            path = INPUT_SPP_T2
         elif self.id in ("bast_ppl", "bast_pml"):
             path = INPUT_BAST
         elif self.id == "bukti_terima":
@@ -86,7 +89,6 @@ DOCUMENT_TYPES = [
         "Lampiran_SPK_PML", "00. Template Lampiran SPK PML.docx",
         "Lampiran kontrak kerja untuk Petugas Pemeriksa Lapangan (PML)",
     ),
-    # ── Grup berikutnya: belum diimplementasikan ──────────────────────
     DocumentType(
         "bapp_ppl_t1", "BAPP PPL Termin 1", "BAPP Termin 1",
         "BAPP_PPL_Termin1", "01. Template BAPP T1 PPL.docx",
@@ -118,13 +120,23 @@ DOCUMENT_TYPES = [
         "Berita Acara Pemeriksaan Hasil Pekerjaan untuk PML (Termin II)",
     ),
     DocumentType(
+        "spp_t2_ppl", "SPP PPL Termin II", "SPP Termin II",
+        "SPP_PPL_Termin2", "04. Template SPP T2 PPL.docx",
+        "Surat Pernyataan Penyelesaian Termin II untuk Petugas Lapangan (PPL)",
+    ),
+    DocumentType(
+        "spp_t2_pml", "SPP PML Termin II", "SPP Termin II",
+        "SPP_PML_Termin2", "04. Template SPP T2 PML.docx",
+        "Surat Pernyataan Penyelesaian Termin II untuk Pemeriksa Lapangan (PML)",
+    ),
+    DocumentType(
         "bast_ppl", "BAST PPL", "BAST",
-        "BAST_PPL", "04. Template BAST PPL.docx",
+        "BAST_PPL", "05. Template BAST PPL.docx",
         "Berita Acara Serah Terima untuk PPL",
     ),
     DocumentType(
         "bast_pml", "BAST PML", "BAST",
-        "BAST_PML", "04. Template BAST PML.docx",
+        "BAST_PML", "05. Template BAST PML.docx",
         "Berita Acara Serah Terima untuk PML",
     ),
     DocumentType(

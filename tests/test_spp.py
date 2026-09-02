@@ -1,0 +1,64 @@
+"""Regression tests for renamed SPP Termin I number input and placeholder."""
+import os
+import tempfile
+import unittest
+import zipfile
+
+import pandas as pd
+from docx import Document
+
+from src import spp
+
+
+def _document_xml_text(path):
+    with zipfile.ZipFile(path) as archive:
+        return "".join(
+            archive.read(name).decode("utf-8", errors="ignore")
+            for name in archive.namelist()
+            if name.startswith("word/") and name.endswith(".xml")
+        )
+
+
+class SppTermin1InputNameTests(unittest.TestCase):
+    def test_generator_uses_no_input_spp_t1_for_its_matching_placeholder(self):
+        with tempfile.TemporaryDirectory() as directory:
+            template_path = os.path.join(directory, "template.docx")
+            document = Document()
+            document.add_paragraph("{{no_input_spp_t1}}")
+            document.add_paragraph("{{nama_lengkap}}")
+            document.add_paragraph("{{nik}}")
+            document.add_paragraph("{{no_spk}}")
+            document.add_paragraph("{{jml_usaha}}")
+            document.add_paragraph("{{jml_usaha_min}}")
+            document.add_paragraph("{{persentase}}")
+            document.save(template_path)
+
+            dfs = {
+                spp.SHEET_DATA_MITRA: pd.DataFrame([{
+                    "nik": "6304000000000001",
+                    "nama_lengkap": "PETUGAS UJI PPL",
+                    "jabatan": "PPL",
+                }]),
+                spp.SHEET_NO_SPK: pd.DataFrame([{
+                    "nik": "6304000000000001",
+                    "no_spk": "SPK-001/2026",
+                    "no_input_spp_t1": "11",
+                }]),
+                spp.SHEET_ALOKASI: pd.DataFrame([{
+                    "nik_ppl": "6304000000000001",
+                    "nik_pml": "6304000000000002",
+                    "target": "10",
+                    "capaian": "10",
+                    "persentase": "100",
+                }]),
+            }
+            events = list(spp.iter_generate("ppl", dfs, template_path, directory))
+            output_path = next(event["path"] for event in events if event["t"] == "file")
+            xml_text = _document_xml_text(output_path)
+
+        self.assertIn("11", xml_text)
+        self.assertNotIn("{{no_input_spp_t1}}", xml_text)
+
+
+if __name__ == "__main__":
+    unittest.main()

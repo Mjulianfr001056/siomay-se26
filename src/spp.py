@@ -7,7 +7,7 @@ dengan satu file Excel berisi 3 sheet.
 
 Sheet input:
   - data_mitra      : nik, nama_lengkap, jabatan  (PPL & PML)
-  - no_spk          : nik, no_spk, no_urut_sppl
+  - no_spk          : nik, no_spk, no_input_spp_t1
   - alokasi_usaha   : nik_ppl, nik_pml, target, capaian, persentase
 
 Fungsi inti ``iter_generate()`` adalah *generator* yang melempar
@@ -33,7 +33,7 @@ SHEET_NAME = "data_mitra"
 
 REQUIRED_SCHEMA = {
     SHEET_DATA_MITRA: ["nik", "nama_lengkap", "jabatan"],
-    SHEET_NO_SPK: ["nik", "no_spk", "no_urut_sppl"],
+    SHEET_NO_SPK: ["nik", "no_spk", "no_input_spp_t1"],
     SHEET_ALOKASI: ["nik_ppl", "nik_pml", "target", "capaian", "persentase"],
 }
 
@@ -42,7 +42,7 @@ COL_NIK = "nik"
 COL_NAMA = "nama_lengkap"
 COL_JABATAN = "jabatan"
 COL_NO_SPK = "no_spk"
-COL_NO_URUT = "no_urut_sppl"
+COL_NO_INPUT_SPP_T1 = "no_input_spp_t1"
 COL_TARGET = "target"
 COL_CAPAIAN = "capaian"
 COL_PERSENTASE = "persentase"
@@ -341,7 +341,7 @@ def iter_generate(kind, dfs, template_path, out_dir):
         nik = str(row.get(COL_NIK, "")).strip()
         nama = str(row.get(COL_NAMA, "")).strip()
         no_spk_val = str(row.get(COL_NO_SPK, "")).strip()
-        no_urut = str(row.get(COL_NO_URUT, "")).strip()
+        no_input = str(row.get(COL_NO_INPUT_SPP_T1, "")).strip()
 
         if not nama or nama.lower() == "nan":
             yield {
@@ -353,17 +353,17 @@ def iter_generate(kind, dfs, template_path, out_dir):
 
         yield {
             "t": "log",
-            "msg": f"  [{idx+1}/{total}] {nama} | no_urut={no_urut}",
+            "msg": f"  [{idx+1}/{total}] {nama} | no_input={no_input}",
             "level": "INFO",
         }
 
         if kind == "ppl":
             file_path = _generate_ppl_doc(
-                nik, nama, no_spk_val, no_urut, df_alokasi, template_path
+                nik, nama, no_spk_val, no_input, df_alokasi, template_path
             )
         else:
             file_path = _generate_pml_doc(
-                nik, nama, no_spk_val, no_urut, df_alokasi,
+                nik, nama, no_spk_val, no_input, df_alokasi,
                 name_lookup, template_path,
             )
 
@@ -387,7 +387,7 @@ def iter_generate(kind, dfs, template_path, out_dir):
     yield {"t": "done", "generated": generated}
 
 
-def _generate_ppl_doc(nik, nama, no_spk_val, no_urut, df_alokasi, template_path):
+def _generate_ppl_doc(nik, nama, no_spk_val, no_input, df_alokasi, template_path):
     """Generate a single SPP PPL document. Returns output path or None."""
     df_alokasi[COL_NIK_PPL] = df_alokasi[COL_NIK_PPL].str.strip()
 
@@ -414,7 +414,7 @@ def _generate_ppl_doc(nik, nama, no_spk_val, no_urut, df_alokasi, template_path)
     replace_text_preserving_runs(
         doc,
         {
-            "{{no_urut_spp}}": no_urut,
+            "{{no_input_spp_t1}}": no_input,
             "{{nama_lengkap}}": nama,
             "{{nik}}": nik,
             "{{no_spk}}": no_spk_val,
@@ -429,7 +429,7 @@ def _generate_ppl_doc(nik, nama, no_spk_val, no_urut, df_alokasi, template_path)
     return tmp_path
 
 
-def _generate_pml_doc(nik, nama, no_spk_val, no_urut, df_alokasi,
+def _generate_pml_doc(nik, nama, no_spk_val, no_input, df_alokasi,
                       name_lookup, template_path):
     """Generate a single SPP PML document. Returns output path or None."""
     df_alokasi[COL_NIK_PPL] = df_alokasi[COL_NIK_PPL].str.strip()
@@ -467,7 +467,7 @@ def _generate_pml_doc(nik, nama, no_spk_val, no_urut, df_alokasi,
     replace_text_preserving_runs(
         doc,
         {
-            "{{no_urut_spp}}": no_urut,
+            "{{no_input_spp_t1}}": no_input,
             "{{nama_lengkap}}": nama,
             "{{nik}}": nik,
             "{{no_spk}}": no_spk_val,
