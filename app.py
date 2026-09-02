@@ -60,9 +60,12 @@ from utils import (
     MERGE_AVAILABLE,
     PDF_AVAILABLE,
     close_window,
+    conversion_estimate_messages,
+    conversion_workload,
     convert_docx_files_to_pdf,
     duration_info_box,
     ensure_extension,
+    estimate_conversion_seconds,
     file_order_key,
     format_duration,
     format_timer_clock,
@@ -1967,11 +1970,20 @@ def main(page: ft.Page):
     save_duration_box = ft.Container(visible=False)
     _save_timer_task = None
     _save_start_time = 0.0
+    _conversion_start_time = 0.0
+    _conversion_estimate_seconds = None
 
     # Dialog modal: ditampilkan saat konversi DOCX→PDF berlangsung
     _save_dialog_msg = ft.Text("Menyiapkan data…", size=14,
                                color=ft.Colors.BLUE_900,
                                text_align=ft.TextAlign.CENTER)
+    _save_estimate_max = ft.Text("", size=13, visible=False,
+                                 color=ft.Colors.BLUE_GREY_700,
+                                 text_align=ft.TextAlign.CENTER)
+    _save_estimate_remaining = ft.Text("", size=13, visible=False,
+                                       color=ft.Colors.BLUE_900,
+                                       weight=ft.FontWeight.W_600,
+                                       text_align=ft.TextAlign.CENTER)
     save_preparing_dialog = ft.AlertDialog(
         modal=True,
         content=ft.Column(
@@ -1979,6 +1991,12 @@ def main(page: ft.Page):
                 ft.ProgressRing(width=48, height=48, stroke_width=4,
                                 color=ft.Colors.BLUE_700),
                 _save_dialog_msg,
+                ft.Column(
+                    [_save_estimate_max, _save_estimate_remaining],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=4,
+                    tight=True,
+                ),
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=16, tight=True,
@@ -2094,6 +2112,13 @@ def main(page: ft.Page):
                 # Update pesan dialog jika dialog sedang aktif
                 dialog_base = _save_dialog_msg.data or "Menyiapkan data…"
                 _save_dialog_msg.value = f"{dialog_base} ({clock_str})"
+                if (_conversion_estimate_seconds is not None
+                        and _save_estimate_max.visible):
+                    conversion_elapsed = time.time() - _conversion_start_time
+                    maximum, remaining = conversion_estimate_messages(
+                        _conversion_estimate_seconds, conversion_elapsed)
+                    _save_estimate_max.value = maximum
+                    _save_estimate_remaining.value = remaining
                 page.update()
                 await asyncio.sleep(0.5)
         except asyncio.CancelledError:
@@ -2125,6 +2150,7 @@ def main(page: ft.Page):
 
     async def on_save_output(e):
         nonlocal _save_timer_task, _save_start_time
+        nonlocal _conversion_start_time, _conversion_estimate_seconds
         if state["busy"] or not state["generated_files"]:
             return
         files = state["generated_files"]
@@ -2155,6 +2181,9 @@ def main(page: ft.Page):
         fmt_options_col.disabled = True
         _save_dialog_msg.data = "Menyiapkan data…"
         _save_dialog_msg.value = "Menyiapkan data… (00:00)"
+        _conversion_estimate_seconds = None
+        _save_estimate_max.visible = False
+        _save_estimate_remaining.visible = False
         page.show_dialog(save_preparing_dialog)
         if _save_timer_task and not _save_timer_task.done():
             _save_timer_task.cancel()
@@ -2195,6 +2224,21 @@ def main(page: ft.Page):
                 conv_msg = (f"Mengonversi {n_total} dokumen ke dalam satu PDF...")
                 _save_dialog_msg.data = conv_msg
                 _save_dialog_msg.value = conv_msg
+                recipient_count = None
+                if doc.id == "bukti_terima":
+                    recipient_rows = state["dfs"].get(bukti_terima.SHEET_NAME)
+                    recipient_count = len(recipient_rows) if recipient_rows is not None else 0
+                workload = conversion_workload(
+                    doc.id, n_total, recipient_count=recipient_count)
+                _conversion_estimate_seconds = estimate_conversion_seconds(
+                    doc.id, workload)
+                _conversion_start_time = time.time()
+                maximum, remaining = conversion_estimate_messages(
+                    _conversion_estimate_seconds, 0)
+                _save_estimate_max.value = maximum
+                _save_estimate_remaining.value = remaining
+                _save_estimate_max.visible = True
+                _save_estimate_remaining.visible = True
                 log(f"Konversi PDF batch dimulai: {n_total} dokumen.", "INFO")
                 page.update()
                 pdfs, failed_paths = await asyncio.to_thread(
@@ -2209,6 +2253,8 @@ def main(page: ft.Page):
 
                 # ── Tutup dialog, lanjutkan dengan progress bar ─────────
                 page.pop_dialog()
+                _save_estimate_max.visible = False
+                _save_estimate_remaining.visible = False
 
                 if fmt == "merged":
                     # Semua PDF digabung jadi SATU berkas siap cetak,

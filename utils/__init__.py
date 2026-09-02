@@ -1,6 +1,7 @@
 """utils — pustaka lokal berisi fungsi-fungsi utilitas yang dapat dipakai ulang.
 
 Submodul:
+ - conversion_estimation : benchmark dan estimasi waktu konversi DOCX→PDF
  - pdf_tools : deteksi kemampuan, konversi DOCX→PDF (LibreOffice), gabung PDF (pypdf)
 - files     : urutan alami nama berkas, ekstensi, arsip ZIP, buka Explorer,
               opsi dialog simpan
@@ -13,6 +14,13 @@ from utils.files import (
     open_in_explorer,
     save_dialog_options,
     zip_files,
+)
+from utils.conversion_estimation import (
+    CONVERSION_BENCHMARKS,
+    conversion_estimate_messages,
+    conversion_workload,
+    estimate_conversion_seconds,
+    format_estimated_duration,
 )
 from utils.pdf_tools import (
     MERGE_AVAILABLE,
@@ -33,16 +41,21 @@ from utils.ui import (
 )
 
 __all__ = [
+    "CONVERSION_BENCHMARKS",
     "MERGE_AVAILABLE",
     "PDF_AVAILABLE",
     "LOG_STYLES",
     "close_window",
+    "conversion_estimate_messages",
+    "conversion_workload",
     "convert_docx_files_to_pdf",
     "convert_docx_to_pdf",
     "duration_info_box",
     "ensure_extension",
+    "estimate_conversion_seconds",
     "file_order_key",
     "format_duration",
+    "format_estimated_duration",
     "format_timer_clock",
     "make_activity_log",
     "make_snackbar",
