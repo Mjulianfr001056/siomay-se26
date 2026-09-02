@@ -4,8 +4,8 @@ Generator BAPP Termin 2 (PML) - Sensus Ekonomi 2026.
 Port dari notebook 'generator/Generator_BAPP_PML_grid_bukti_dukung (1).ipynb'.
 
 Mengisi template BAPP (Berita Acara Pemeriksaan Hasil Pekerjaan) Termin II
-untuk Pemeriksa Lapangan (PML) berdasarkan data Excel, menyisipkan
-screenshot bukti dukung dari tautan Google Drive sebagai grid adaptif.
+untuk Pemeriksa Lapangan (PML) berdasarkan data Excel, menyisipkan screenshot
+bukti dukung sebagai grid adaptif atau pada halaman khusus.
 
 Input Excel:
   Sheet 'input': nik, nama_lengkap, no_spk, no_urut_bapp_t2,
@@ -21,7 +21,7 @@ import re
 import pandas as pd
 from docx import Document
 from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
@@ -70,6 +70,12 @@ GRID_LAYOUTS = {
 GRID_MAX_WIDTH_IN  = 9.2
 GRID_MAX_HEIGHT_IN = 4.6
 GRID_GAP_IN        = 0.12
+
+IMAGE_LAYOUT_GRID = "grid"
+IMAGE_LAYOUT_DEDICATED_PAGES = "dedicated_pages"
+IMAGE_LAYOUTS = {IMAGE_LAYOUT_GRID, IMAGE_LAYOUT_DEDICATED_PAGES}
+DEDICATED_MAX_WIDTH_IN = 7.5
+DEDICATED_MAX_HEIGHT_IN = 4.0
 
 
 def validate_input(file_path: str):
@@ -304,14 +310,19 @@ def _fit_box(img_w: int, img_h: int, box_w: float, box_h: float):
 
 
 def insert_gdrive_images(doc: Document, links_str: str,
-                         placeholder: str = None):
+                         placeholder: str = None,
+                         image_layout: str = IMAGE_LAYOUT_GRID):
     """
-    Sisipkan 1-5 screenshot bukti dukung sebagai GRID di lokasi
-    paragraf yang mengandung {{bukti_dukung}}.
+    Sisipkan screenshot sebagai grid atau satu gambar per halaman khusus.
+
+    Mode grid memakai maksimal lima tautan. Mode dedicated_pages tidak
+    membatasi jumlah tautan dan menambahkan setiap gambar pada halaman baru.
     Returns (jumlah_gambar, daftar_peringatan).
     """
     if placeholder is None:
         placeholder = BUKTI_PLACEHOLDER
+    if image_layout not in IMAGE_LAYOUTS:
+        raise ValueError(f"Mode tata letak gambar tidak dikenal: {image_layout}")
     warnings_list = []
 
     # Simpan paragraf jangkar sebelum token dibersihkan. Penggantian melalui
@@ -328,9 +339,13 @@ def insert_gdrive_images(doc: Document, links_str: str,
     if not links_str or not str(links_str).strip():
         return 0, []
 
-    links = [l.strip() for l in str(links_str).split(",") if l.strip()][:5]
-    if len(str(links_str).split(",")) > 5:
-        warnings_list.append("Hanya 5 tautan pertama yang dipakai")
+    links = [l.strip() for l in str(links_str).split(",") if l.strip()]
+    if image_layout == IMAGE_LAYOUT_GRID and len(links) > 5:
+        links = links[:5]
+        warnings_list.append(
+            "Mode grid hanya memakai 5 tautan pertama. Gunakan mode halaman "
+            "khusus untuk menyisipkan seluruh gambar."
+        )
 
     # Unduh semua gambar
     images = []
@@ -341,7 +356,8 @@ def insert_gdrive_images(doc: Document, links_str: str,
             continue
         try:
             fh, img = _download_drive_image(file_id)
-            images.append((fh, img))
+            images.append((fh, img.size))
+            img.close()
         except Exception as e:
             msg = str(e)
             if "403" in msg or "forbidden" in msg.lower():
@@ -354,6 +370,55 @@ def insert_gdrive_images(doc: Document, links_str: str,
     n = len(images)
     if n == 0:
         return 0, warnings_list
+
+    if image_layout == IMAGE_LAYOUT_DEDICATED_PAGES:
+        section = doc.sections[-1]
+        page_w = section.page_width.inches
+        page_h = section.page_height.inches
+        content_w = page_w - section.left_margin.inches - section.right_margin.inches
+        content_h = page_h - section.top_margin.inches - section.bottom_margin.inches
+        # Sisakan ruang yang cukup untuk isi template dan judul pada halaman 4.
+        # python-docx tidak dapat mengukur sisa ruang hasil pagination Word, jadi
+        # gunakan kotak konservatif alih-alih memenuhi seluruh area cetak.
+        image_box_w = max(min(content_w, DEDICATED_MAX_WIDTH_IN), 1.0)
+        image_box_h = max(
+            min(content_h - 0.75, DEDICATED_MAX_HEIGHT_IN), 1.0
+        )
+        anchor = target_p._p
+
+        for image_number, (fh, image_size) in enumerate(images, start=1):
+            # Placeholder template sudah berada di awal halaman khusus
+            # (halaman 4), jadi gambar pertama tidak memerlukan page break.
+            # Gambar berikutnya masing-masing dimulai pada halaman baru.
+            if image_number > 1:
+                break_p = doc.add_paragraph()
+                break_p.add_run().add_break(WD_BREAK.PAGE)
+                anchor.addnext(break_p._p)
+                anchor = break_p._p
+
+            title_p = doc.add_paragraph()
+            title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            title_p.paragraph_format.space_after = Pt(8)
+            title_run = title_p.add_run(f"BUKTI DUKUNG ({image_number}/{n})")
+            title_run.bold = True
+            title_run.font.size = Pt(12)
+            anchor.addnext(title_p._p)
+            anchor = title_p._p
+
+            image_p = doc.add_paragraph()
+            image_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            image_p.paragraph_format.space_before = Pt(0)
+            image_p.paragraph_format.space_after = Pt(0)
+            target_w, target_h = _fit_box(
+                image_size[0], image_size[1], image_box_w, image_box_h
+            )
+            fh.seek(0)
+            image_p.add_run().add_picture(
+                fh, width=Inches(target_w), height=Inches(target_h)
+            )
+            anchor.addnext(image_p._p)
+            anchor = image_p._p
+        return n, warnings_list
 
     layout = GRID_LAYOUTS.get(n, [3] * ((n + 2) // 3))
     num_rows = len(layout)
@@ -384,8 +449,8 @@ def insert_gdrive_images(doc: Document, links_str: str,
             cell_p.paragraph_format.space_before = Pt(0)
             cell_p.paragraph_format.space_after = Pt(0)
             if img_idx < n:
-                fh, img = images[img_idx]
-                img_w, img_h = img.size
+                fh, image_size = images[img_idx]
+                img_w, img_h = image_size
                 target_w, target_h = _fit_box(img_w, img_h, col_w, row_h)
                 fh.seek(0)
                 run = cell_p.add_run()
@@ -404,7 +469,8 @@ def _slug(name: str) -> str:
     return s.strip("_")[:40] or "tanpa_nama"
 
 
-def iter_generate(dfs: dict, template_path: str, out_dir: str):
+def iter_generate(dfs: dict, template_path: str, out_dir: str,
+                  image_layout: str = IMAGE_LAYOUT_GRID):
     """
     Generator populasi dokumen BAPP T2 PML.
 
@@ -462,7 +528,9 @@ def iter_generate(dfs: dict, template_path: str, out_dir: str):
 
         # Selalu proses placeholder bukti dukung, termasuk saat tautan kosong,
         # agar token template tidak tertinggal pada dokumen hasil.
-        n_img, img_warnings = insert_gdrive_images(doc, link_gd)
+        n_img, img_warnings = insert_gdrive_images(
+            doc, link_gd, image_layout=image_layout
+        )
         if n_img:
             yield {"t": "log", "level": "INFO",
                    "msg": f"   {n_img} screenshot disisipkan"}

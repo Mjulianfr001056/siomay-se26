@@ -131,6 +131,7 @@ def main(page: ft.Page):
         "conv_duration": None,       # durasi konversi PDF/penyimpanan (detik)
         "saved_path": None,          # hasil step 5
         "saved": False,              # True setelah output berhasil disimpan
+        "bapp_t2_image_layout": "grid",  # grid | dedicated_pages
         "busy": False,
     }
 
@@ -1135,6 +1136,49 @@ def main(page: ft.Page):
         border_radius=8,
         padding=12,
     )
+    bapp_t2_layout_group = ft.RadioGroup(
+        value="grid",
+        content=ft.Column(
+            [
+                ft.Radio(
+                    value="grid",
+                    label="Grid adaptif — maksimal 5 gambar per halaman, ukuran menyesuaikan",
+                ),
+                ft.Radio(
+                    value="dedicated_pages",
+                    label="Halaman khusus — satu gambar per halaman",
+                ),
+            ],
+            spacing=2,
+        ),
+        on_change=lambda e: state.update(
+            {"bapp_t2_image_layout": e.control.value}
+        ),
+    )
+    bapp_t2_layout_option = ft.Container(
+        visible=False,
+        content=ft.Column(
+            [
+                ft.Text(
+                    "Tata Letak Bukti Dukung",
+                    size=13,
+                    weight=ft.FontWeight.BOLD,
+                    color=ft.Colors.BLUE_900,
+                ),
+                ft.Text(
+                    "Pilih cara gambar ditempatkan pada dokumen BAPP Termin 2.",
+                    size=12,
+                    color=ft.Colors.GREY_700,
+                ),
+                bapp_t2_layout_group,
+            ],
+            spacing=4,
+        ),
+        bgcolor=ft.Colors.BLUE_50,
+        border=ft.Border.all(1, ft.Colors.BLUE_200),
+        border_radius=8,
+        padding=12,
+    )
     btn_generate = None
 
     def refresh_step4():
@@ -1145,6 +1189,8 @@ def main(page: ft.Page):
         bapp_t1_link_warning.visible = (
             doc.group in ("BAPP Termin 1", "BAPP Termin 2", "Bukti Terima")
         )
+        bapp_t2_layout_option.visible = doc.group == "BAPP Termin 2"
+        bapp_t2_layout_group.value = state["bapp_t2_image_layout"]
         if doc.group == "Lampiran SPK" and doc.kind:
             try:
                 ctx = lampiran_spk.prepare_context(state["dfs"])
@@ -1216,6 +1262,7 @@ def main(page: ft.Page):
         gen_duration_box.visible = False
 
         btn_generate.disabled = True
+        bapp_t2_layout_group.disabled = True
         btn_generate.text = "Sedang Memproses Dokumen… (00:00)"
         btn_generate.icon = ft.Icons.HOURGLASS_TOP_ROUNDED
         gen_progress.visible = True
@@ -1236,6 +1283,7 @@ def main(page: ft.Page):
         state["gen_duration"] = duration
         state["busy"] = False
         btn_generate.disabled = False
+        bapp_t2_layout_group.disabled = False
         btn_generate.text = "Mulai Generate Dokumen"
         btn_generate.icon = ft.Icons.PLAY_ARROW_ROUNDED
 
@@ -1398,7 +1446,7 @@ def main(page: ft.Page):
             _gen_ui_finish()
 
     async def generate_bapp_pml_t2():
-        """Populasi BAPP T2 PML — screenshot grid bukti dukung."""
+        """Populasi BAPP T2 PML dengan tata letak bukti pilihan pengguna."""
         _gen_ui_start()
         gen_status.value = "Menyiapkan populasi dokumen\u2026"
         page.update()
@@ -1408,10 +1456,14 @@ def main(page: ft.Page):
         log("MEMULAI GENERATE \u2014 BAPP T2 PML", "STEP")
         log(f"Template : {os.path.basename(state['template_path'])}", "INFO")
         log(f"Data     : {os.path.basename(state['file_path'])}", "INFO")
+        image_layout = state["bapp_t2_image_layout"]
+        layout_label = "Grid adaptif" if image_layout == "grid" else "Halaman khusus"
+        log(f"Gambar   : {layout_label}", "INFO")
 
         try:
             for ev in bapp_pml_t2.iter_generate(
-                    state["dfs"], state["template_path"], out_dir):
+                    state["dfs"], state["template_path"], out_dir,
+                    image_layout=image_layout):
                 t = ev.get("t")
                 if t == "log":
                     log(ev["msg"], ev.get("level", "INFO"))
@@ -1442,7 +1494,7 @@ def main(page: ft.Page):
             _gen_ui_finish()
 
     async def generate_bapp_ppl_t2():
-        """Populasi BAPP T2 PPL — screenshot grid bukti dukung."""
+        """Populasi BAPP T2 PPL dengan tata letak bukti pilihan pengguna."""
         _gen_ui_start()
         gen_status.value = "Menyiapkan populasi dokumen\u2026"
         page.update()
@@ -1452,10 +1504,14 @@ def main(page: ft.Page):
         log("MEMULAI GENERATE \u2014 BAPP T2 PPL", "STEP")
         log(f"Template : {os.path.basename(state['template_path'])}", "INFO")
         log(f"Data     : {os.path.basename(state['file_path'])}", "INFO")
+        image_layout = state["bapp_t2_image_layout"]
+        layout_label = "Grid adaptif" if image_layout == "grid" else "Halaman khusus"
+        log(f"Gambar   : {layout_label}", "INFO")
 
         try:
             for ev in bapp_ppl_t2.iter_generate(
-                    state["dfs"], state["template_path"], out_dir):
+                    state["dfs"], state["template_path"], out_dir,
+                    image_layout=image_layout):
                 t = ev.get("t")
                 if t == "log":
                     log(ev["msg"], ev.get("level", "INFO"))
@@ -1751,6 +1807,7 @@ def main(page: ft.Page):
                 border_radius=8, padding=12,
             ),
             bapp_t1_link_warning,
+            bapp_t2_layout_option,
             btn_generate,
             ft.Container(height=6),
             gen_progress,
@@ -1800,25 +1857,24 @@ def main(page: ft.Page):
             return
         doc = current_doc()
         is_bukti_terima = doc and doc.group == "Bukti Terima"
-        docx_label = (f"Arsip ZIP ({n} dokumen DOCX asli, tanpa konversi)"
+        docx_label = (f"Arsip ZIP {n} dokumen DOCX asli (cepat)"
                       if n > 1 else
-                      "Arsip ZIP (1 dokumen DOCX asli, tanpa konversi)")
+                      "Arsip ZIP 1 dokumen DOCX asli (cepat)")
         options = [ft.Radio(value="docx_zip", label=docx_label)]
         if PDF_AVAILABLE:
             if is_bukti_terima:
-                zip_label = "Arsip ZIP (1 berkas PDF multi-halaman)"
+                zip_label = "Arsip ZIP, 1 berkas PDF multi-halaman, (normal)"
             else:
-                zip_label = (f"Arsip ZIP ({n} berkas PDF)" if n > 1
-                             else "Arsip ZIP (1 berkas PDF)")
+                zip_label = (f"Arsip ZIP, {n} berkas PDF, (normal)" if n > 1
+                             else "Arsip ZIP, 1 berkas PDF, (normal)")
             options.append(ft.Radio(value="zip", label=zip_label))
         if PDF_AVAILABLE and MERGE_AVAILABLE:
             if is_bukti_terima:
-                merged_label = "PDF (1 berkas multi-halaman, siap cetak)"
+                merged_label = "PDF gabungan, 1 berkas multi-halaman (siap cetak, lebih lambat)"
             elif n > 1:
-                merged_label = (f"PDF gabungan ({n} dokumen menjadi 1 berkas, "
-                                "urut no_urut_spk — siap cetak)")
+                merged_label = (f"PDF gabungan, 1 berkas multi-halaman (siap cetak, lebih lambat)")
             else:
-                merged_label = "PDF gabungan (siap cetak)"
+                merged_label = "PDF gabungan, 1 berkas multi-halaman (siap cetak, lebih lambat)"
             options.append(ft.Radio(value="merged", label=merged_label))
         fmt_options_col.controls = options
         fmt_group.value = "zip" if PDF_AVAILABLE else "docx_zip"
@@ -1857,7 +1913,8 @@ def main(page: ft.Page):
             "template_path": None, "template_source": None,
             "generated_files": [], "generation_done": False,
             "gen_duration": None, "conv_duration": None,
-            "saved_path": None, "saved": False, "busy": False,
+            "saved_path": None, "saved": False,
+            "bapp_t2_image_layout": "grid", "busy": False,
         })
         restyle_doc_cards()
         step1_summary.value = "Belum ada dokumen dipilih."
@@ -1873,6 +1930,8 @@ def main(page: ft.Page):
         gen_status.visible = False
         gen_duration_box.visible = False
         bapp_t1_link_warning.visible = False
+        bapp_t2_layout_option.visible = False
+        bapp_t2_layout_group.value = "grid"
         gen_summary_text.value = "Lengkapi langkah sebelumnya."
         save_result_area.visible = False
         save_duration_box.visible = False

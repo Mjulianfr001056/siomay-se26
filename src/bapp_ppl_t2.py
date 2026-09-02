@@ -4,8 +4,8 @@ Generator BAPP Termin 2 (PPL) - Sensus Ekonomi 2026.
 Port dari notebook 'generator/Generator_BAPP_PPL_grid_bukti_dukung (1).ipynb'.
 
 Mengisi template BAPP (Berita Acara Pemeriksaan Hasil Pekerjaan) Termin II
-untuk Petugas Lapangan (PPL) berdasarkan data Excel, menyisipkan
-screenshot bukti dukung dari tautan Google Drive sebagai grid adaptif.
+untuk Petugas Lapangan (PPL) berdasarkan data Excel, menyisipkan screenshot
+bukti dukung sebagai grid adaptif atau pada halaman khusus.
 
 Input Excel:
   Sheet 'input': nik, nama_lengkap, no_spk, no_urut_bapp_t2,
@@ -21,7 +21,7 @@ import re
 import pandas as pd
 from docx import Document
 from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
@@ -70,6 +70,12 @@ GRID_LAYOUTS = {
 GRID_MAX_WIDTH_IN  = 9.2
 GRID_MAX_HEIGHT_IN = 4.6
 GRID_GAP_IN        = 0.12
+
+IMAGE_LAYOUT_GRID = "grid"
+IMAGE_LAYOUT_DEDICATED_PAGES = "dedicated_pages"
+IMAGE_LAYOUTS = {IMAGE_LAYOUT_GRID, IMAGE_LAYOUT_DEDICATED_PAGES}
+DEDICATED_MAX_WIDTH_IN = 7.5
+DEDICATED_MAX_HEIGHT_IN = 4.0
 
 
 def validate_input(file_path: str):
@@ -197,49 +203,59 @@ def replace_text_preserving_runs(doc: Document, replacements: dict) -> None:
             runs = para.runs
             if not runs:
                 continue
-            full_text = ""
-            char_map = []
-            for ri, run in enumerate(runs):
-                for ci, ch in enumerate(run.text):
-                    char_map.append((ri, ci))
-                    full_text += ch
-            matches = list(re.finditer(r"\{\{[^}]+\}\}", full_text))
-            if not matches:
-                continue
-            for m in reversed(matches):
-                ph = m.group(0)
-                if ph not in replacements:
-                    continue
-                val = str(replacements[ph])
-                start, end = m.start(), m.end()
-                touched = []
-                for ci in range(start, min(end, len(char_map))):
-                    ri = char_map[ci][0]
-                    if not touched or touched[-1] != ri:
-                        touched.append(ri)
-                if not touched:
-                    continue
-                first_ri = touched[0]
-                last_ri = touched[-1]
-                first_run_start = next(
-                    i for i, (ri, _) in enumerate(char_map) if ri == first_ri
+            while True:
+                full_text = "".join(run.text for run in runs)
+                match = next(
+                    (
+                        m for m in re.finditer(r"\{\{[^}]+\}\}", full_text)
+                        if m.group(0) in replacements
+                    ),
+                    None,
                 )
-                prefix = full_text[first_run_start:start]
-                last_run_end = (
-                    max(i for i, (ri, _) in enumerate(char_map) if ri == last_ri)
-                    + 1
-                )
-                suffix = full_text[end:last_run_end] if end < last_run_end else ""
-                runs[first_ri].text = prefix + val
-                _strip_placeholder_fmt(runs[first_ri])
-                for ri in touched[1:]:
-                    runs[ri].text = suffix if (ri == last_ri and suffix) else ""
+                if match is None:
+                    break
 
-    _process_paragraphs(doc.paragraphs)
-    for table in doc.tables:
+                run_starts = []
+                position = 0
+                for run in runs:
+                    run_starts.append(position)
+                    position += len(run.text)
+                first_ri = max(
+                    i for i, start in enumerate(run_starts) if start <= match.start()
+                )
+                last_ri = max(
+                    i for i, start in enumerate(run_starts) if start < match.end()
+                )
+                prefix = runs[first_ri].text[
+                    :match.start() - run_starts[first_ri]
+                ]
+                suffix = runs[last_ri].text[
+                    match.end() - run_starts[last_ri]:
+                ]
+                runs[first_ri].text = (
+                    prefix + str(replacements[match.group(0)]) + suffix
+                )
+                _strip_placeholder_fmt(runs[first_ri])
+                for ri in range(first_ri + 1, last_ri + 1):
+                    runs[ri].text = ""
+
+    def _process_table(table):
         for row in table.rows:
             for cell in row.cells:
                 _process_paragraphs(cell.paragraphs)
+                for nested_table in cell.tables:
+                    _process_table(nested_table)
+
+    _process_paragraphs(doc.paragraphs)
+    for table in doc.tables:
+        _process_table(table)
+    for section in doc.sections:
+        _process_paragraphs(section.header.paragraphs)
+        for table in section.header.tables:
+            _process_table(table)
+        _process_paragraphs(section.footer.paragraphs)
+        for table in section.footer.tables:
+            _process_table(table)
 
 
 def _extract_file_id(link: str):
@@ -294,43 +310,40 @@ def _fit_box(img_w: int, img_h: int, box_w: float, box_h: float):
 
 
 def insert_gdrive_images(doc: Document, links_str: str,
-                         placeholder: str = None):
+                         placeholder: str = None,
+                         image_layout: str = IMAGE_LAYOUT_GRID):
     """
-    Sisipkan 1-5 screenshot bukti dukung sebagai GRID di lokasi
-    paragraf yang mengandung {{bukti_dukung}}.
+    Sisipkan screenshot sebagai grid atau satu gambar per halaman khusus.
+
+    Mode grid memakai maksimal lima tautan. Mode dedicated_pages tidak
+    membatasi jumlah tautan dan menambahkan setiap gambar pada halaman baru.
     Returns (jumlah_gambar, daftar_peringatan).
     """
     if placeholder is None:
         placeholder = BUKTI_PLACEHOLDER
+    if image_layout not in IMAGE_LAYOUTS:
+        raise ValueError(f"Mode tata letak gambar tidak dikenal: {image_layout}")
     warnings_list = []
+
+    target_p = next((p for p in doc.paragraphs if placeholder in p.text), None)
+    if target_p is None:
+        return 0, ["Template tidak memiliki placeholder " + placeholder]
+    replace_text_preserving_runs(doc, {placeholder: ""})
 
     if not HAS_PIL:
         warnings_list.append("Pillow tidak terinstal - screenshot dilewati.")
-        for p in doc.paragraphs:
-            if placeholder in p.text:
-                for run in p.runs:
-                    if placeholder in run.text:
-                        run.text = run.text.replace(placeholder, "")
-                break
         return 0, warnings_list
 
-    # Cari paragraf placeholder
-    target_p = None
-    for p in doc.paragraphs:
-        if placeholder in p.text:
-            target_p = p
-            for run in p.runs:
-                if placeholder in run.text:
-                    run.text = run.text.replace(placeholder, "")
-            break
-    if target_p is None:
-        return 0, ["Template tidak memiliki placeholder " + placeholder]
     if not links_str or not str(links_str).strip():
         return 0, []
 
-    links = [l.strip() for l in str(links_str).split(",") if l.strip()][:5]
-    if len(str(links_str).split(",")) > 5:
-        warnings_list.append("Hanya 5 tautan pertama yang dipakai")
+    links = [l.strip() for l in str(links_str).split(",") if l.strip()]
+    if image_layout == IMAGE_LAYOUT_GRID and len(links) > 5:
+        links = links[:5]
+        warnings_list.append(
+            "Mode grid hanya memakai 5 tautan pertama. Gunakan mode halaman "
+            "khusus untuk menyisipkan seluruh gambar."
+        )
 
     # Unduh semua gambar
     images = []
@@ -341,7 +354,8 @@ def insert_gdrive_images(doc: Document, links_str: str,
             continue
         try:
             fh, img = _download_drive_image(file_id)
-            images.append((fh, img))
+            images.append((fh, img.size))
+            img.close()
         except Exception as e:
             msg = str(e)
             if "403" in msg or "forbidden" in msg.lower():
@@ -354,6 +368,55 @@ def insert_gdrive_images(doc: Document, links_str: str,
     n = len(images)
     if n == 0:
         return 0, warnings_list
+
+    if image_layout == IMAGE_LAYOUT_DEDICATED_PAGES:
+        section = doc.sections[-1]
+        page_w = section.page_width.inches
+        page_h = section.page_height.inches
+        content_w = page_w - section.left_margin.inches - section.right_margin.inches
+        content_h = page_h - section.top_margin.inches - section.bottom_margin.inches
+        # Sisakan ruang yang cukup untuk isi template dan judul pada halaman 4.
+        # python-docx tidak dapat mengukur sisa ruang hasil pagination Word, jadi
+        # gunakan kotak konservatif alih-alih memenuhi seluruh area cetak.
+        image_box_w = max(min(content_w, DEDICATED_MAX_WIDTH_IN), 1.0)
+        image_box_h = max(
+            min(content_h - 0.75, DEDICATED_MAX_HEIGHT_IN), 1.0
+        )
+        anchor = target_p._p
+
+        for image_number, (fh, image_size) in enumerate(images, start=1):
+            # Placeholder template sudah berada di awal halaman khusus
+            # (halaman 4), jadi gambar pertama tidak memerlukan page break.
+            # Gambar berikutnya masing-masing dimulai pada halaman baru.
+            if image_number > 1:
+                break_p = doc.add_paragraph()
+                break_p.add_run().add_break(WD_BREAK.PAGE)
+                anchor.addnext(break_p._p)
+                anchor = break_p._p
+
+            title_p = doc.add_paragraph()
+            title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            title_p.paragraph_format.space_after = Pt(8)
+            title_run = title_p.add_run(f"BUKTI DUKUNG ({image_number}/{n})")
+            title_run.bold = True
+            title_run.font.size = Pt(12)
+            anchor.addnext(title_p._p)
+            anchor = title_p._p
+
+            image_p = doc.add_paragraph()
+            image_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            image_p.paragraph_format.space_before = Pt(0)
+            image_p.paragraph_format.space_after = Pt(0)
+            target_w, target_h = _fit_box(
+                image_size[0], image_size[1], image_box_w, image_box_h
+            )
+            fh.seek(0)
+            image_p.add_run().add_picture(
+                fh, width=Inches(target_w), height=Inches(target_h)
+            )
+            anchor.addnext(image_p._p)
+            anchor = image_p._p
+        return n, warnings_list
 
     layout = GRID_LAYOUTS.get(n, [3] * ((n + 2) // 3))
     num_rows = len(layout)
@@ -384,8 +447,8 @@ def insert_gdrive_images(doc: Document, links_str: str,
             cell_p.paragraph_format.space_before = Pt(0)
             cell_p.paragraph_format.space_after = Pt(0)
             if img_idx < n:
-                fh, img = images[img_idx]
-                img_w, img_h = img.size
+                fh, image_size = images[img_idx]
+                img_w, img_h = image_size
                 target_w, target_h = _fit_box(img_w, img_h, col_w, row_h)
                 fh.seek(0)
                 run = cell_p.add_run()
@@ -404,7 +467,8 @@ def _slug(name: str) -> str:
     return s.strip("_")[:40] or "tanpa_nama"
 
 
-def iter_generate(dfs: dict, template_path: str, out_dir: str):
+def iter_generate(dfs: dict, template_path: str, out_dir: str,
+                  image_layout: str = IMAGE_LAYOUT_GRID):
     """
     Generator populasi dokumen BAPP T2 PPL.
 
@@ -460,14 +524,14 @@ def iter_generate(dfs: dict, template_path: str, out_dir: str):
 
         replace_text_preserving_runs(doc, replacements)
 
-        # Insert screenshots bukti dukung
-        if link_gd:
-            n_img, img_warnings = insert_gdrive_images(doc, link_gd)
-            if n_img:
-                yield {"t": "log", "level": "INFO",
-                       "msg": f"   {n_img} screenshot disisipkan"}
-            for w in img_warnings:
-                yield {"t": "log", "level": "WARN", "msg": f"   {w}"}
+        n_img, img_warnings = insert_gdrive_images(
+            doc, link_gd, image_layout=image_layout
+        )
+        if n_img:
+            yield {"t": "log", "level": "INFO",
+                   "msg": f"   {n_img} screenshot disisipkan"}
+        for w in img_warnings:
+            yield {"t": "log", "level": "WARN", "msg": f"   {w}"}
 
         # Simpan DOCX
         safe_name = _slug(who)
