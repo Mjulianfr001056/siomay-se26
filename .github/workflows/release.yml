@@ -58,17 +58,39 @@ jobs:
           # LibreOffice is a native dependency, not a Python package. Install
           # its official MSI into a temporary workspace directory, then place
           # that runtime beside SIOMAY.exe for a fully portable release.
-          $version = "25.8.6"
+          # Use the immutable official archive URL. Versions are removed from
+          # /stable after supersession, which previously downloaded a tiny 404
+          # response and caused msiexec error 1620.
+          $version = "25.8.7.2"
           $msi = "LibreOffice_$version`_Win_x86-64.msi"
-          $url = "https://download.documentfoundation.org/libreoffice/stable/$version/win/x86_64/$msi"
+          $url = "https://downloadarchive.documentfoundation.org/libreoffice/old/$version/win/x86_64/$msi"
           $installRoot = Join-Path $PWD "libreoffice-install"
           $log = Join-Path $PWD "libreoffice-msi.log"
           # curl.exe retries handle transient network errors that
           # Invoke-WebRequest does not recover from on CI runners.
-          & curl.exe -L --retry 5 --retry-delay 10 --retry-all-errors `
+          & curl.exe --fail --show-error -L `
+            --retry 5 --retry-delay 10 --retry-all-errors `
             --connect-timeout 30 --max-time 600 -o $msi $url
           if ($LASTEXITCODE -ne 0) {
             throw "Failed to download LibreOffice MSI from $url (curl exit $LASTEXITCODE)."
+          }
+          $msiInfo = Get-Item $msi
+          if ($msiInfo.Length -lt 100MB) {
+            throw "Downloaded LibreOffice MSI is unexpectedly small ($($msiInfo.Length) bytes)."
+          }
+          $expectedHeader = [byte[]](0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1)
+          $actualHeader = [byte[]]::new(8)
+          $stream = [System.IO.File]::OpenRead($msi)
+          try {
+            $bytesRead = $stream.Read($actualHeader, 0, $actualHeader.Length)
+          } finally {
+            $stream.Dispose()
+          }
+          if ($bytesRead -ne $actualHeader.Length) {
+            throw "Downloaded file is too short to be a valid MSI."
+          }
+          if ([System.BitConverter]::ToString($actualHeader) -ne [System.BitConverter]::ToString($expectedHeader)) {
+            throw "Downloaded file does not have a valid MSI compound-file header."
           }
           $arguments = "/i `"$msi`" /qn /norestart /L*v `"$log`" INSTALLLOCATION=`"$installRoot`""
           $installer = Start-Process -FilePath msiexec.exe -ArgumentList $arguments -Wait -PassThru

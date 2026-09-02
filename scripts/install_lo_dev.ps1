@@ -18,7 +18,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Version = "25.8.6"
+    [string]$Version = "25.8.7.2"
 )
 
 Set-StrictMode -Version Latest
@@ -28,7 +28,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot    = Split-Path -Parent $PSScriptRoot
 $installDest = Join-Path $repoRoot "LibreOffice"
 $msiName     = "LibreOffice_${Version}_Win_x86-64.msi"
-$downloadUrl = "https://download.documentfoundation.org/libreoffice/stable/$Version/win/x86_64/$msiName"
+$downloadUrl = "https://downloadarchive.documentfoundation.org/libreoffice/old/$Version/win/x86_64/$msiName"
 $msiPath     = Join-Path $env:TEMP $msiName
 $logPath     = Join-Path $env:TEMP "libreoffice-msi.log"
 
@@ -50,7 +50,8 @@ if (Test-Path $soffice -PathType Leaf) {
 # ── Download ───────────────────────────────────────────────────────────────
 if (-not (Test-Path $msiPath -PathType Leaf)) {
     Write-Host "[1/3] Downloading $msiName (~340 MB) ..." -ForegroundColor Yellow
-    & curl.exe -L --retry 5 --retry-delay 10 --retry-all-errors `
+    & curl.exe --fail --show-error -L `
+        --retry 5 --retry-delay 10 --retry-all-errors `
         --connect-timeout 30 --max-time 900 `
         -o $msiPath $downloadUrl
     if ($LASTEXITCODE -ne 0) {
@@ -60,7 +61,29 @@ if (-not (Test-Path $msiPath -PathType Leaf)) {
     Write-Host "    Downloaded: $msiPath ($sizeMB MB)" -ForegroundColor Green
 } else {
     $sizeMB = [math]::Round((Get-Item $msiPath).Length / 1MB, 1)
-    Write-Host "[1/3] MSI already cached at $msiPath ($sizeMB MB) — skipping download."
+    Write-Host "[1/3] MSI already cached at $msiPath ($sizeMB MB) - skipping download."
+}
+
+$msiInfo = Get-Item $msiPath
+if ($msiInfo.Length -lt 100MB) {
+    Remove-Item $msiPath -Force
+    throw "Downloaded LibreOffice MSI is unexpectedly small ($($msiInfo.Length) bytes). The invalid cached file was removed."
+}
+$expectedHeader = [byte[]](0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1)
+$actualHeader = [byte[]]::new(8)
+$stream = [System.IO.File]::OpenRead($msiPath)
+try {
+    $bytesRead = $stream.Read($actualHeader, 0, $actualHeader.Length)
+} finally {
+    $stream.Dispose()
+}
+if ($bytesRead -ne $actualHeader.Length) {
+    Remove-Item $msiPath -Force
+    throw "Downloaded file is too short to be a valid MSI. The invalid cached file was removed."
+}
+if ([System.BitConverter]::ToString($actualHeader) -ne [System.BitConverter]::ToString($expectedHeader)) {
+    Remove-Item $msiPath -Force
+    throw "Downloaded file does not have a valid MSI compound-file header. The invalid cached file was removed."
 }
 
 # ── Install ────────────────────────────────────────────────────────────────
@@ -95,5 +118,5 @@ Write-Host "=== Done! ===" -ForegroundColor Green
 Write-Host "LibreOffice $Version installed to: $installDest"
 Write-Host "soffice.com: $soffice"
 Write-Host ""
-Write-Host "The /LibreOffice/ folder is already in .gitignore — it will NOT be committed."
+Write-Host "The /LibreOffice/ folder is already in .gitignore - it will NOT be committed."
 Write-Host "Run `python app.py` and PDF conversion should now be available."
