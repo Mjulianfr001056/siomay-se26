@@ -8,6 +8,7 @@ import pandas as pd
 from docx import Document
 
 from src import spp
+from src.spp_t2 import _template_fields
 from src.workflow import get_document_by_id
 
 
@@ -27,11 +28,11 @@ class SppTermin1InputNameTests(unittest.TestCase):
         self.assertEqual(get_document_by_id("spp_pml").label, "SPP PML Termin 1")
         self.assertEqual(get_document_by_id("spp_pml").group, "SPP Termin 1")
 
-    def test_generator_uses_no_input_spp_t1_for_its_matching_placeholder(self):
+    def test_generator_uses_no_urut_spp_t1_for_its_matching_placeholder(self):
         with tempfile.TemporaryDirectory() as directory:
             template_path = os.path.join(directory, "template.docx")
             document = Document()
-            document.add_paragraph("{{no_input_spp_t1}}")
+            document.add_paragraph("{{no_urut_spp_t1}}")
             document.add_paragraph("{{nama_lengkap}}")
             document.add_paragraph("{{nik}}")
             document.add_paragraph("{{no_spk}}")
@@ -49,7 +50,7 @@ class SppTermin1InputNameTests(unittest.TestCase):
                 spp.SHEET_NO_SPK: pd.DataFrame([{
                     "nik": "6304000000000001",
                     "no_spk": "SPK-001/2026",
-                    "no_input_spp_t1": "11",
+                    "no_urut_spp_t1": "11",
                 }]),
                 spp.SHEET_ALOKASI: pd.DataFrame([{
                     "nik_ppl": "6304000000000001",
@@ -64,7 +65,16 @@ class SppTermin1InputNameTests(unittest.TestCase):
             xml_text = _document_xml_text(output_path)
 
         self.assertIn("11", xml_text)
-        self.assertNotIn("{{no_input_spp_t1}}", xml_text)
+        self.assertNotIn("{{no_urut_spp_t1}}", xml_text)
+
+    def test_bundled_templates_use_no_urut_spp_t1(self):
+        for document_id in ("spp_ppl", "spp_pml"):
+            with self.subTest(document=document_id):
+                fields = _template_fields(
+                    get_document_by_id(document_id).builtin_template_path
+                )
+                self.assertIn("no_urut_spp_t1", fields)
+                self.assertNotIn("no_input_spp_t1", fields)
 
 
 if __name__ == "__main__":

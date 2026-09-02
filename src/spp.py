@@ -7,7 +7,7 @@ dengan satu file Excel berisi 3 sheet.
 
 Sheet input:
   - data_mitra      : nik, nama_lengkap, jabatan  (PPL & PML)
-  - no_spk          : nik, no_spk, no_input_spp_t1
+  - no_spk          : nik, no_spk, no_urut_spp_t1
   - alokasi_usaha   : nik_ppl, nik_pml, target, capaian, persentase
 
 Fungsi inti ``iter_generate()`` adalah *generator* yang melempar
@@ -33,7 +33,7 @@ SHEET_NAME = "data_mitra"
 
 REQUIRED_SCHEMA = {
     SHEET_DATA_MITRA: ["nik", "nama_lengkap", "jabatan"],
-    SHEET_NO_SPK: ["nik", "no_spk", "no_input_spp_t1"],
+    SHEET_NO_SPK: ["nik", "no_spk", "no_urut_spp_t1"],
     SHEET_ALOKASI: ["nik_ppl", "nik_pml", "target", "capaian", "persentase"],
 }
 
@@ -42,7 +42,7 @@ COL_NIK = "nik"
 COL_NAMA = "nama_lengkap"
 COL_JABATAN = "jabatan"
 COL_NO_SPK = "no_spk"
-COL_NO_INPUT_SPP_T1 = "no_input_spp_t1"
+COL_NO_URUT_SPP_T1 = "no_urut_spp_t1"
 COL_TARGET = "target"
 COL_CAPAIAN = "capaian"
 COL_PERSENTASE = "persentase"
@@ -99,15 +99,18 @@ def _format_persentase(raw):
 
 
 def _strip_placeholder_fmt(run):
-    """Remove editorial color (blue/red) and underline from a run."""
+    """Convert editorial placeholder formatting to normal black text."""
     rpr = run._r.find(qn("w:rPr"))
     if rpr is None:
         return
     color = rpr.find(qn("w:color"))
     if color is not None:
         val = color.get(qn("w:val")) or ""
-        if val.lower() in ("0000ff", "ff0000"):
-            rpr.remove(color)
+        if val.lower() in ("0000ff", "ee0000", "ff0000"):
+            color.set(qn("w:val"), "000000")
+            color.attrib.pop(qn("w:themeColor"), None)
+            color.attrib.pop(qn("w:themeTint"), None)
+            color.attrib.pop(qn("w:themeShade"), None)
     u = rpr.find(qn("w:u"))
     if u is not None:
         rpr.remove(u)
@@ -190,13 +193,18 @@ def _set_cell_text(cell, text):
 
 
 def _fix_lampiran_layout(table):
-    """Fix column widths and center-align data cells in the PML table."""
+    """Center the PML table, fix its widths, and center-align data cells."""
     tbl = table._tbl
     tbl_pr = tbl.find(qn("w:tblPr"))
     if tbl_pr is not None:
         jc = tbl_pr.find(qn("w:jc"))
-        if jc is not None:
-            tbl_pr.remove(jc)
+        if jc is None:
+            jc = OxmlElement("w:jc")
+            tbl_pr.append(jc)
+        jc.set(qn("w:val"), "center")
+        tbl_ind = tbl_pr.find(qn("w:tblInd"))
+        if tbl_ind is not None:
+            tbl_pr.remove(tbl_ind)
         tbl_w = tbl_pr.find(qn("w:tblW"))
         if tbl_w is not None:
             tbl_w.set(qn("w:w"), "0")
@@ -270,7 +278,10 @@ def _fill_pml_lampiran_table(table, ppl_rows):
 # =====================================================================
 #  Generator
 # =====================================================================
-def iter_generate(kind, dfs, template_path, out_dir):
+def iter_generate(
+        kind, dfs, template_path, out_dir,
+        number_column=COL_NO_URUT_SPP_T1,
+        number_placeholder="no_urut_spp_t1", termin_label=""):
     """Generate SPP documents.
 
     Yields event dicts::
@@ -341,7 +352,7 @@ def iter_generate(kind, dfs, template_path, out_dir):
         nik = str(row.get(COL_NIK, "")).strip()
         nama = str(row.get(COL_NAMA, "")).strip()
         no_spk_val = str(row.get(COL_NO_SPK, "")).strip()
-        no_input = str(row.get(COL_NO_INPUT_SPP_T1, "")).strip()
+        no_input = str(row.get(number_column, "")).strip()
 
         if not nama or nama.lower() == "nan":
             yield {
@@ -359,17 +370,20 @@ def iter_generate(kind, dfs, template_path, out_dir):
 
         if kind == "ppl":
             file_path = _generate_ppl_doc(
-                nik, nama, no_spk_val, no_input, df_alokasi, template_path
+                nik, nama, no_spk_val, no_input, df_alokasi, template_path,
+                number_placeholder,
             )
         else:
             file_path = _generate_pml_doc(
                 nik, nama, no_spk_val, no_input, df_alokasi,
-                name_lookup, template_path,
+                name_lookup, template_path, number_placeholder,
             )
 
         if file_path:
             safe_name = re.sub(r"[^A-Za-z0-9]+", "_", nama)
-            out_name = f"SPP_{label.upper()}_{idx+1:03d}_{safe_name}.docx"
+            out_name = (
+                f"SPP_{label.upper()}{termin_label}_{idx+1:03d}_{safe_name}.docx"
+            )
             dest = os.path.join(out_dir, out_name)
             os.replace(file_path, dest)
             generated.append(dest)
@@ -387,7 +401,9 @@ def iter_generate(kind, dfs, template_path, out_dir):
     yield {"t": "done", "generated": generated}
 
 
-def _generate_ppl_doc(nik, nama, no_spk_val, no_input, df_alokasi, template_path):
+def _generate_ppl_doc(
+        nik, nama, no_spk_val, no_input, df_alokasi, template_path,
+        number_placeholder="no_urut_spp_t1"):
     """Generate a single SPP PPL document. Returns output path or None."""
     df_alokasi[COL_NIK_PPL] = df_alokasi[COL_NIK_PPL].str.strip()
 
@@ -414,7 +430,7 @@ def _generate_ppl_doc(nik, nama, no_spk_val, no_input, df_alokasi, template_path
     replace_text_preserving_runs(
         doc,
         {
-            "{{no_input_spp_t1}}": no_input,
+            "{{" + number_placeholder + "}}": no_input,
             "{{nama_lengkap}}": nama,
             "{{nik}}": nik,
             "{{no_spk}}": no_spk_val,
@@ -429,8 +445,9 @@ def _generate_ppl_doc(nik, nama, no_spk_val, no_input, df_alokasi, template_path
     return tmp_path
 
 
-def _generate_pml_doc(nik, nama, no_spk_val, no_input, df_alokasi,
-                      name_lookup, template_path):
+def _generate_pml_doc(
+        nik, nama, no_spk_val, no_input, df_alokasi, name_lookup,
+        template_path, number_placeholder="no_urut_spp_t1"):
     """Generate a single SPP PML document. Returns output path or None."""
     df_alokasi[COL_NIK_PPL] = df_alokasi[COL_NIK_PPL].str.strip()
     df_alokasi[COL_NIK_PML] = df_alokasi[COL_NIK_PML].str.strip()
@@ -467,7 +484,7 @@ def _generate_pml_doc(nik, nama, no_spk_val, no_input, df_alokasi,
     replace_text_preserving_runs(
         doc,
         {
-            "{{no_input_spp_t1}}": no_input,
+            "{{" + number_placeholder + "}}": no_input,
             "{{nama_lengkap}}": nama,
             "{{nik}}": nik,
             "{{no_spk}}": no_spk_val,

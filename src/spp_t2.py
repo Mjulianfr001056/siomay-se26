@@ -1,26 +1,34 @@
-"""Generator Surat Pernyataan Penyelesaian (SPP) termin 2.
+"""Generator Surat Pernyataan Penyelesaian (SPP) Termin 2.
 
-The supplied termin 2 workbook has one data sheet.  Its identity fields are
-validated explicitly; any additional field used by the selected Word template
-must be provided as a column bearing the same name.
+Termin 2 uses the same three-sheet data model and generation calculations as
+Termin 1. The only schema difference is ``no_urut_spp_t2`` in ``no_spk``;
+its value is written to the matching Word placeholder.
 """
-import os
 import re
 
 import pandas as pd
 from docx import Document
 
-from src.spp import replace_text_preserving_runs
+from src import spp
 
 
-SHEET_NAME = "input"
-REQUIRED_COLUMNS = ["nik", "nama_lengkap", "no_spk", "no_input_spp_t2"]
+SHEET_DATA_MITRA = spp.SHEET_DATA_MITRA
+SHEET_NO_SPK = spp.SHEET_NO_SPK
+SHEET_ALOKASI = spp.SHEET_ALOKASI
+SHEET_NAME = SHEET_DATA_MITRA
+COL_NO_URUT_SPP_T2 = "no_urut_spp_t2"
+NUMBER_PLACEHOLDER = "no_urut_spp_t2"
 
+REQUIRED_SCHEMA = {
+    SHEET_DATA_MITRA: ["nik", "nama_lengkap", "jabatan"],
+    SHEET_NO_SPK: ["nik", "no_spk", COL_NO_URUT_SPP_T2],
+    SHEET_ALOKASI: ["nik_ppl", "nik_pml", "target", "capaian", "persentase"],
+}
 
-def _norm(value) -> str:
-    if pd.isna(value):
-        return ""
-    return str(value).strip()
+SUPPORTED_TEMPLATE_FIELDS = {
+    "nik", "nama_lengkap", "no_spk", NUMBER_PLACEHOLDER,
+    "jml_usaha", "jml_usaha_min", "persentase",
+}
 
 
 def _template_fields(template_path: str) -> set[str]:
@@ -45,72 +53,56 @@ def _template_fields(template_path: str) -> set[str]:
 
 
 def validate_input(file_path: str, template_path: str | None = None):
-    """Validate the termin 2 SPP workbook and optional template field mapping."""
+    """Validate the Termin 2 three-sheet workbook and template placeholders."""
+    errors = []
+    dfs = {}
     try:
-        with pd.ExcelFile(file_path) as workbook:
-            if SHEET_NAME not in workbook.sheet_names:
-                return False, [
-                    f"Sheet '{SHEET_NAME}' tidak ditemukan. Sheet yang tersedia: "
-                    f"{', '.join(workbook.sheet_names)}"
-                ], {}
-            df = workbook.parse(SHEET_NAME, dtype=str)
+        workbook = pd.ExcelFile(file_path)
     except Exception as exc:
         return False, [f"Gagal membaca file Excel: {exc}"], {}
-    df.columns = [str(column).strip() for column in df.columns]
-    df = df.fillna("")
-    errors = []
-    missing = [column for column in REQUIRED_COLUMNS if column not in df.columns]
-    if missing:
-        errors.append("Sheet 'input' kekurangan kolom: " + ", ".join(missing))
-    if df.empty:
-        errors.append("Sheet 'input' kosong.")
+
+    try:
+        for sheet_name, required_columns in REQUIRED_SCHEMA.items():
+            if sheet_name not in workbook.sheet_names:
+                errors.append(f"Sheet '{sheet_name}' tidak ditemukan.")
+                continue
+            dataframe = pd.read_excel(workbook, sheet_name=sheet_name, dtype=str)
+            dataframe.columns = dataframe.columns.str.strip()
+            dataframe = dataframe.fillna("")
+            missing = [
+                column for column in required_columns
+                if column not in dataframe.columns
+            ]
+            if missing:
+                errors.append(
+                    f"Sheet '{sheet_name}' kekurangan kolom: "
+                    + ", ".join(missing)
+                )
+            else:
+                dfs[sheet_name] = dataframe
+    finally:
+        workbook.close()
 
     if template_path and not errors:
-        fields = _template_fields(template_path)
-        unmapped = sorted(fields - set(df.columns))
+        unmapped = sorted(
+            _template_fields(template_path) - SUPPORTED_TEMPLATE_FIELDS
+        )
         if unmapped:
             errors.append(
-                "Kolom input untuk placeholder template tidak ditemukan: "
+                "Placeholder template SPP Termin 2 tidak didukung: "
                 + ", ".join(unmapped)
             )
-    return not errors, errors, {SHEET_NAME: df}
+    return not errors, errors, dfs
 
 
 def iter_generate(kind: str, dfs: dict, template_path: str, out_dir: str):
-    """Generate one SPP termin 2 DOCX per row for the selected officer role."""
-    df = dfs.get(SHEET_NAME)
-    if df is None or df.empty:
-        yield {"t": "log", "level": "ERROR", "msg": "Sheet 'input' kosong atau tidak ada."}
-        yield {"t": "done", "generated": []}
-        return
-
-    os.makedirs(out_dir, exist_ok=True)
-    generated = []
-    role = kind.upper()
-    total = len(df)
-    yield {"t": "log", "level": "STEP", "msg": f"Memproses {total} SPP termin 2 {role}..."}
-
-    for index, row in df.iterrows():
-        nik = _norm(row.get("nik", ""))
-        nama = _norm(row.get("nama_lengkap", ""))
-        if not nik:
-            yield {"t": "log", "level": "WARN", "msg": f"Baris {index + 1}: NIK kosong - dilewati."}
-            yield {"t": "progress", "done": index + 1, "total": total}
-            continue
-
-        doc = Document(template_path)
-        replacements = {
-            "{{" + column + "}}": _norm(value)
-            for column, value in row.items()
-        }
-        replace_text_preserving_runs(doc, replacements)
-        safe_name = re.sub(r"[^A-Za-z0-9]+", "_", nama or nik).strip("_")[:40] or "tanpa_nama"
-        output_name = f"SPP_{role}_Termin2_{index + 1:03d}_{nik}_{safe_name}.docx"
-        output_path = os.path.join(out_dir, output_name)
-        doc.save(output_path)
-        generated.append(output_path)
-        yield {"t": "file", "path": output_path}
-        yield {"t": "log", "level": "OK", "msg": f"Tersimpan: {output_name}"}
-        yield {"t": "progress", "done": index + 1, "total": total}
-
-    yield {"t": "done", "generated": generated}
+    """Generate Termin 2 with the shared SPP aggregation/table workflow."""
+    yield from spp.iter_generate(
+        kind,
+        dfs,
+        template_path,
+        out_dir,
+        number_column=COL_NO_URUT_SPP_T2,
+        number_placeholder=NUMBER_PLACEHOLDER,
+        termin_label="_Termin2",
+    )

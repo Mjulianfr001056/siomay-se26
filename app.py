@@ -27,7 +27,8 @@ from src import spp
 from src import spp_t2
 from src import bast
 from src import bukti_terima
-from src.validator import validate_excel_file, analyze_nulls
+from src.validator import analyze_nulls
+from src.workflow_routing import validate_document_input
 from src.template_generator import generate_template
 from src.workflow import (
     GROUP_ORDER,
@@ -353,12 +354,23 @@ def main(page: ft.Page):
 
     def select_doc(doc_id: str):
         state["doc_id"] = doc_id
+        # Input validity belongs to the previously selected workflow schema.
+        # Never carry it into another document type without revalidation.
+        state["file_path"] = None
+        state["dfs"] = {}
+        state["errors"] = []
+        state["data_ok"] = False
         state["generated_files"] = []
         state["generation_done"] = False
         state["gen_duration"] = None
         state["conv_duration"] = None
         gen_duration_box.visible = False
         save_duration_box.visible = False
+        data_file_chip.value = "Belum ada file dipilih."
+        data_file_chip.italic = True
+        data_file_chip.color = ft.Colors.GREY_600
+        verify_area.controls = []
+        verify_area.visible = False
         doc = current_doc()
         builtin = doc.builtin_template_path
         restyle_doc_cards()
@@ -500,24 +512,12 @@ def main(page: ft.Page):
         state["file_path"] = path
         state["data_ok"] = False
         doc = current_doc()
-        if doc and doc.group == "Lampiran SPK":
-            ok, errors, dfs = lampiran_spk.validate_input(path)
-        elif doc and doc.group == "BAPP Termin 1":
-            bapp_mod = bapp_ppl if doc.kind == "ppl" else bapp_pml
-            ok, errors, dfs = bapp_mod.validate_input(path)
-        elif doc and doc.group == "BAPP Termin 2":
-            bapp_mod = bapp_ppl_t2 if doc.kind == "ppl" else bapp_pml_t2
-            ok, errors, dfs = bapp_mod.validate_input(path)
-        elif doc and doc.group == "SPP Termin 1":
-            ok, errors, dfs = spp.validate_input(path)
-        elif doc and doc.group == "SPP Termin 2":
-            ok, errors, dfs = spp_t2.validate_input(path)
-        elif doc and doc.group == "BAST":
-            ok, errors, dfs = bast.validate_input(path)
-        elif doc and doc.group == "Bukti Terima":
-            ok, errors, dfs = bukti_terima.validate_input(path)
-        else:
-            ok, errors, dfs = validate_excel_file(path)
+        template_path = state["template_path"]
+        if template_path == "__blank__":
+            template_path = None
+        ok, errors, dfs = validate_document_input(
+            doc, path, template_path=template_path
+        )
         state["dfs"], state["errors"] = dfs, errors
         name = os.path.basename(path)
         if not ok:
@@ -549,7 +549,7 @@ def main(page: ft.Page):
             return
 
         state["data_ok"] = True
-        if doc and doc.group == "Lampiran SPK":
+        if doc and doc.id in ("lampiran_spk_ppl", "lampiran_spk_pml"):
             # Ringkasan khusus format Lampiran SPK (per-sheet + jumlah petugas)
             try:
                 ctx = lampiran_spk.prepare_context(dfs)
@@ -686,17 +686,25 @@ def main(page: ft.Page):
             return
 
         if doc and doc.group == "SPP Termin 2":
-            df_spp_t2 = dfs.get(spp_t2.SHEET_NAME)
-            n_rows = len(df_spp_t2) if df_spp_t2 is not None else 0
+            df_spp_t2 = dfs.get(spp_t2.SHEET_DATA_MITRA)
+            n_rows = 0
             role_label = "PPL" if doc.kind == "ppl" else "PML"
+            if df_spp_t2 is not None and not df_spp_t2.empty:
+                n_rows = sum(
+                    1 for value in df_spp_t2[spp.COL_JABATAN]
+                    if str(value).strip().upper() == role_label
+                )
+            df_alokasi = dfs.get(spp_t2.SHEET_ALOKASI)
             verify_area.controls = [
                 ft.Row(
                     [
                         stat_box(f"Total {role_label}", str(n_rows), good=n_rows > 0),
-                        stat_box("Sheet", spp_t2.SHEET_NAME, good=True),
-                        stat_box("Kolom input",
-                                 str(len(df_spp_t2.columns)) if df_spp_t2 is not None else "0",
-                                 good=df_spp_t2 is not None),
+                        stat_box("Sheet data_mitra",
+                                 str(len(df_spp_t2)) if df_spp_t2 is not None else "0",
+                                 good=df_spp_t2 is not None and len(df_spp_t2) > 0),
+                        stat_box("Sheet alokasi_usaha",
+                                 str(len(df_alokasi)) if df_alokasi is not None else "0",
+                                 good=df_alokasi is not None),
                     ],
                     spacing=10,
                 ),
@@ -1280,8 +1288,13 @@ def main(page: ft.Page):
             n_total = len(df_mitra) if df_mitra is not None else 0
             extra = f" ({n_total} petugas total)"
         elif doc.group == "SPP Termin 2":
-            df_input = state["dfs"].get(spp_t2.SHEET_NAME)
-            n_rows = len(df_input) if df_input is not None else 0
+            df_input = state["dfs"].get(spp_t2.SHEET_DATA_MITRA)
+            n_rows = 0
+            if df_input is not None and not df_input.empty:
+                n_rows = sum(
+                    1 for value in df_input[spp.COL_JABATAN]
+                    if str(value).strip().lower() == doc.kind
+                )
             extra = f" ({n_rows} petugas {doc.kind.upper()})"
         elif doc.group == "BAST":
             df_mitra_b = state["dfs"].get(bast.SHEET_NAME)
@@ -1799,44 +1812,44 @@ def main(page: ft.Page):
         doc = current_doc()
 
         # ── Jalur khusus: grup Lampiran SPK (PPL / PML) ────────────────
-        if doc and doc.group == "Lampiran SPK":
+        if doc and doc.id in ("lampiran_spk_ppl", "lampiran_spk_pml"):
             await generate_lampiran_spk(
                 doc, tempfile.mkdtemp(prefix="gen_spk_"))
             return
 
         # ── Jalur khusus: grup BAPP Termin 1 ────────────────
-        if doc and doc.group == "BAPP Termin 1":
-            if doc.kind == "ppl":
-                await generate_bapp_ppl()
-            else:
-                await generate_bapp_pml()
+        if doc and doc.id == "bapp_ppl_t1":
+            await generate_bapp_ppl()
+            return
+        if doc and doc.id == "bapp_pml_t1":
+            await generate_bapp_pml()
             return
 
         # ── Jalur khusus: grup BAPP Termin 2 ────────────────
-        if doc and doc.group == "BAPP Termin 2":
-            if doc.kind == "ppl":
-                await generate_bapp_ppl_t2()
-            else:
-                await generate_bapp_pml_t2()
+        if doc and doc.id == "bapp_ppl_t2":
+            await generate_bapp_ppl_t2()
+            return
+        if doc and doc.id == "bapp_pml_t2":
+            await generate_bapp_pml_t2()
             return
 
         # ── Jalur khusus: grup SPP Termin 1 ────────────────
-        if doc and doc.group == "SPP Termin 1":
+        if doc and doc.id in ("spp_ppl", "spp_pml"):
             await generate_spp()
             return
 
         # ── Jalur khusus: grup SPP Termin 2 ────────────────
-        if doc and doc.group == "SPP Termin 2":
+        if doc and doc.id in ("spp_t2_ppl", "spp_t2_pml"):
             await generate_spp_t2()
             return
 
         # ── Jalur khusus: grup BAST ────────────────
-        if doc and doc.group == "BAST":
+        if doc and doc.id in ("bast_ppl", "bast_pml"):
             await generate_bast()
             return
 
         # ── Jalur khusus: grup Bukti Terima ────────────────
-        if doc and doc.group == "Bukti Terima":
+        if doc and doc.id == "bukti_terima":
             await generate_bukti_terima()
             return
 
