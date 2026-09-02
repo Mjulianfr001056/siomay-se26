@@ -25,6 +25,9 @@ Gunakan versi display untuk Git tag dan judul GitHub Release. Gunakan package ve
 - Dependensi proyek terinstal dari `pyproject.toml`.
 
 Flet membundel Python pada hasil build; pengguna akhir tidak perlu memasang Python.
+Setelah dependency proyek berubah, jalankan kembali `py -3.14 -m pip install .`;
+keberadaan nama dependency di `pyproject.toml` tidak otomatis memperbarui
+environment Python yang sudah terpasang.
 
 ## Build aplikasi
 
@@ -36,7 +39,7 @@ py -3.14 -m pip install .
 .\scripts\build-windows.ps1
 ```
 
-Gunakan `flet build`, bukan `python -m flet`; pada Flet 0.86 CLI tersedia sebagai executable terpisah. Saat ini skrip build memakai runtime Python 3.13 yang dibundel Flet, sementara Python 3.14 dipakai untuk pengembangan dan build tooling. Jangan mengganti `--python-version 3.13` menjadi 3.14 sebelum build Windows Flet dengan runtime 3.14 berhasil diuji. Build Windows menggunakan `--no-compile-packages` agar modul Python murni milik dependensi biner seperti Pandas tetap tersedia dalam runtime terbundel. `certifi` juga dicantumkan sebagai dependensi langsung, walaupun dipakai oleh `requests`, agar selalu disertakan oleh Flet. Runner Windows Flet menanamkan Python di dalam proses aplikasi dan tidak menyertakan `python.exe` pada hasil akhir. Karena itu, workflow rilis memastikan hasil paket memuat berkas impor penting milik `certifi`, `requests`, dan `pandas`, serta `pandas.util`; rilis gagal sebelum ZIP dibuat bila pemeriksaan ini gagal. Sebelum membagikan build, pastikan hasilnya memuat `build/windows/siomay.exe` serta folder `build/windows/app/template/` dan `build/windows/app/input/`. Folder `data/`, `db/`, `generator/`, notebook, cache Python, dan hasil dokumen tidak boleh dimasukkan ke dalam paket rilis.
+Gunakan `flet build`, bukan `python -m flet`; pada Flet 0.86 CLI tersedia sebagai executable terpisah. Saat ini skrip build memakai runtime Python 3.13 yang dibundel Flet, sementara Python 3.14 dipakai untuk pengembangan dan build tooling. Jangan mengganti `--python-version 3.13` menjadi 3.14 sebelum build Windows Flet dengan runtime 3.14 berhasil diuji. Build Windows menggunakan `--no-compile-packages` agar modul Python murni milik dependensi biner seperti Pandas tetap tersedia dalam runtime terbundel. `certifi` juga dicantumkan sebagai dependensi langsung, walaupun dipakai oleh `requests`, agar selalu disertakan oleh Flet. Runner Windows Flet menanamkan Python di dalam proses aplikasi dan tidak menyertakan `python.exe` pada hasil akhir. Karena itu, workflow rilis memastikan hasil paket memuat berkas impor penting milik `certifi`, `requests`, `pandas`, dan `pillow_heif`, termasuk `_pillow_heif*.pyd`, `libheif*.dll`, serta `libde265*.dll`; rilis gagal sebelum ZIP dibuat bila native decoder HEIC tidak lengkap. Sebelum membagikan build, pastikan hasilnya memuat `build/windows/siomay.exe` serta folder `build/windows/app/template/` dan `build/windows/app/input/`. Folder `data/`, `db/`, `generator/`, notebook, cache Python, dan hasil dokumen tidak boleh dimasukkan ke dalam paket rilis.
 
 ## Publikasi GitHub Release
 

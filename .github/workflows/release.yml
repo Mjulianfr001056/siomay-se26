@@ -25,6 +25,9 @@ jobs:
       - name: Install application dependencies
         run: python -m pip install --upgrade pip && python -m pip install .
 
+      - name: Verify HEIC decoder in build environment
+        run: python -c "from utils.images import HAS_HEIF; assert HAS_HEIF, 'pillow-heif/native HEIF codec unavailable'"
+
       - name: Build portable application
         shell: pwsh
         env:
@@ -110,6 +113,13 @@ jobs:
           $pandasUtil = Join-Path $pandas.FullName "util\__init__.py"
           if (-not (Test-Path $pandasUtil)) {
             throw "The packaged pandas installation is incomplete: pandas.util is missing."
+          }
+          $heifPackage = Get-ChildItem -Path $appRoot -Recurse -Directory -Filter pillow_heif | Select-Object -First 1
+          $heifModule = Get-ChildItem -Path $appRoot -Recurse -File -Filter "_pillow_heif*.pyd" | Select-Object -First 1
+          $heifDll = Get-ChildItem -Path $appRoot -Recurse -File -Filter "libheif*.dll" | Select-Object -First 1
+          $decoderDll = Get-ChildItem -Path $appRoot -Recurse -File -Filter "libde265*.dll" | Select-Object -First 1
+          if ($null -eq $heifPackage -or $null -eq $heifModule -or $null -eq $heifDll -or $null -eq $decoderDll) {
+            throw "The packaged application does not contain pillow-heif and its native HEIC decoder files."
           }
           $soffice = Join-Path $appRoot "LibreOffice\program\soffice.com"
           if (-not (Test-Path $soffice -PathType Leaf)) {

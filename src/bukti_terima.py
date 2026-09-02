@@ -16,13 +16,10 @@ Input Excel:
 Output: satu DOCX (banyak halaman, grid 2x2 tetap, tanpa border).
 """
 import datetime
-import io
 import os
 import re
-import time
 
 import pandas as pd
-import requests
 
 try:
     from docx import Document
@@ -35,19 +32,11 @@ try:
 except ImportError:
     HAS_DOCX = False
 
-try:
-    from PIL import Image, ImageFile
-    ImageFile.LOAD_TRUNCATED_IMAGES = True
-    HAS_PIL = True
-except ImportError:
-    HAS_PIL = False
-
-try:
-    from pillow_heif import register_heif_opener
-    register_heif_opener()
-    HAS_HEIF = True
-except ImportError:
-    HAS_HEIF = False
+from utils.images import (
+    HAS_HEIF,
+    HAS_PIL,
+    download_drive_image as _download_drive_image,
+)
 
 
 # ── Skema input Excel ──────────────────────────────────────────────────────
@@ -80,10 +69,6 @@ TEXT_ALLOWANCE_CM = 2.6
 IMAGE_BOX_WIDTH_CM  = COL_WIDTH_CM - CELL_PADDING_CM            # 8.5
 IMAGE_BOX_HEIGHT_CM = max(ROW_HEIGHT_CM - TEXT_ALLOWANCE_CM, 3.0)
 
-_MAX_RETRIES   = 3
-_RETRY_DELAY_S = 2
-
-
 # ── Utilitas Google Drive ──────────────────────────────────────────────────
 
 def _extract_file_id(link: str):
@@ -103,55 +88,6 @@ def _extract_file_id(link: str):
     if re.fullmatch(r"[a-zA-Z0-9_-]{10,}", link):
         return link
     return None
-
-
-def _download_drive_image(file_id: str):
-    """
-    Unduh satu file gambar dari Google Drive (public/shared link) via requests.
-    Mengembalikan (BytesIO PNG, PIL.Image).
-    Mendukung HEIC/HEIF jika pillow-heif terpasang.
-    """
-    url = f"https://drive.google.com/uc?export=download&id={file_id}"
-    session = requests.Session()
-
-    for attempt in range(1, _MAX_RETRIES + 1):
-        try:
-            resp = session.get(url, stream=True, timeout=30)
-            # Tangani halaman konfirmasi Google Drive (file besar)
-            if "text/html" in resp.headers.get("Content-Type", ""):
-                token = None
-                for k, v in resp.cookies.items():
-                    if k.startswith("download_warning"):
-                        token = v
-                        break
-                if token:
-                    resp = session.get(url + f"&confirm={token}",
-                                       stream=True, timeout=30)
-                else:
-                    resp = session.get(
-                        f"https://drive.usercontent.google.com/download"
-                        f"?id={file_id}&export=download&confirm=t",
-                        stream=True, timeout=30,
-                    )
-            resp.raise_for_status()
-            raw_bytes = resp.content
-            break
-        except requests.RequestException as exc:
-            if attempt == _MAX_RETRIES:
-                raise RuntimeError(
-                    f"Gagal mengunduh file {file_id} setelah "
-                    f"{_MAX_RETRIES} percobaan: {exc}"
-                ) from exc
-            time.sleep(_RETRY_DELAY_S)
-
-    img = Image.open(io.BytesIO(raw_bytes))
-    img.load()
-    if img.mode not in ("RGB", "L"):
-        img = img.convert("RGB")
-    png_fh = io.BytesIO()
-    img.save(png_fh, format="PNG")
-    png_fh.seek(0)
-    return png_fh, img
 
 
 # ── Helper OOXML / layout ──────────────────────────────────────────────────

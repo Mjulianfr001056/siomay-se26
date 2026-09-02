@@ -15,13 +15,16 @@ try:
 except ImportError:  # pragma: no cover - dependency wajib pada paket aplikasi
     HAS_PIL = False
 
+HEIF_IMPORT_ERROR = None
+
 try:
-    from pillow_heif import register_heif_opener
+    from pillow_heif import open_heif, register_heif_opener
 
     register_heif_opener()
     HAS_HEIF = True
-except (ImportError, OSError):  # OSError mencakup kegagalan memuat codec native
+except (ImportError, OSError) as exc:  # OSError: codec native gagal dimuat
     HAS_HEIF = False
+    HEIF_IMPORT_ERROR = exc
 
 
 _DRIVE_DOWNLOAD_URL = "https://drive.google.com/uc"
@@ -59,12 +62,26 @@ def image_bytes_to_png(raw_bytes: bytes, content_type: str = ""):
             image = ImageOps.exif_transpose(source)
             image.load()
     except UnidentifiedImageError as exc:
-        hint = (
-            " Decoder HEIC/HEIF tidak tersedia."
-            if not HAS_HEIF
-            else " File mungkin rusak atau bukan format gambar yang didukung."
-        )
-        raise RuntimeError(f"Format gambar tidak dapat dikenali.{hint}") from exc
+        # Fallback langsung membuat dukungan HEIC tidak hanya bergantung pada
+        # registrasi plugin Pillow dan memastikan freezer mendeteksi API native.
+        if HAS_HEIF:
+            try:
+                heif_file = open_heif(raw_bytes, convert_hdr_to_8bit=True)
+                image = heif_file.to_pillow()
+                image = ImageOps.exif_transpose(image)
+                image.load()
+            except Exception as heif_exc:
+                raise RuntimeError(
+                    "Format gambar tidak dapat dikenali. File mungkin rusak "
+                    "atau bukan format gambar yang didukung."
+                ) from heif_exc
+        else:
+            detail = f" ({HEIF_IMPORT_ERROR})" if HEIF_IMPORT_ERROR else ""
+            raise RuntimeError(
+                "Format gambar tidak dapat dikenali. Decoder HEIC/HEIF tidak "
+                "tersedia. Instal ulang aplikasi/dependensi pillow-heif"
+                f"{detail}."
+            ) from exc
 
     if image.mode not in ("RGB", "L"):
         image = image.convert("RGB")
