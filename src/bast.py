@@ -63,6 +63,16 @@ def _norm(v) -> str:
     return str(v).strip()
 
 
+def _format_no_urut_bast(v) -> str:
+    """Pertahankan nomor urut BAST sebagai tiga digit (mis. ``001``).
+
+    Excel dapat menyimpan nilai yang ditampilkan sebagai ``001`` sebagai angka
+    ``1``. Nomor urut numerik dinormalisasi kembali menjadi sedikitnya tiga
+    digit, sedangkan nilai non-numerik dibiarkan apa adanya.
+    """
+    value = _norm(v)
+    return value.zfill(3) if value.isdigit() else value
+
 
 # =====================================================================
 #  Validation
@@ -380,7 +390,7 @@ def _generate_one_doc(row, kind, df_tugas, df_mitra, kec_map,
     nik = _norm(row.get("nik", ""))
     nama = _norm(row.get("nama_mitra", ""))
     no_spk_val = _norm(row.get("no_spk", ""))
-    no_urut = _norm(row.get("no_urut_bast", ""))
+    no_urut = _format_no_urut_bast(row.get("no_urut_bast", ""))
     bukti_link = _norm(row.get("bukti_dukung_bast", ""))
 
     who = nama or nik
