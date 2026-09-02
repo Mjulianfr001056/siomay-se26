@@ -1998,8 +1998,7 @@ def main(page: ft.Page):
 
                 # ── Konversi batch: satu proses LibreOffice untuk semua DOCX ──
                 tmp_pdf_dir = tempfile.mkdtemp(prefix="gen_pdf_")
-                conv_msg = (f"Mengonversi {n_total} dokumen ke PDF dalam satu "
-                            "proses LibreOffice…")
+                conv_msg = (f"Mengonversi {n_total} dokumen ke dalam satu PDF...")
                 _save_dialog_msg.data = conv_msg
                 _save_dialog_msg.value = conv_msg
                 log(f"Konversi PDF batch dimulai: {n_total} dokumen.", "INFO")
