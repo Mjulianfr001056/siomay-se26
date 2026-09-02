@@ -1,10 +1,10 @@
 {
   "channel": "stable",
-  "display_version": "v2026.1.2",
-  "package_version": "2026.1.2",
-  "published_at": "2026-09-01T02:05:00Z",
+  "display_version": "v2026.1.4",
+  "package_version": "2026.1.4",
+  "published_at": "2026-09-02T04:19:38Z",
   "mandatory": false,
-  "download_url": "https://github.com/Mjulianfr001056/siomay-se26/releases/tag/v2026.1.2",
-  "sha256": "6adb6b49df5bab4b2a34ddd78513813393f5f7a326279b5092a959894e587559",
-  "release_notes_url": "https://github.com/Mjulianfr001056/siomay-se26/releases/tag/v2026.1.2"
+  "download_url": "https://github.com/Mjulianfr001056/siomay-se26/releases/tag/v2026.1.4",
+  "sha256": "c5d87cdbfb93c474cc48c11d9df1244dd3607c79f8fb5df08ff81fab0b52c296",
+  "release_notes_url": "https://github.com/Mjulianfr001056/siomay-se26/releases/tag/v2026.1.4"
 }
