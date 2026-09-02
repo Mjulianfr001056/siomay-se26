@@ -1,40 +1,63 @@
 # SIOMAY
+
 ## Sistem Otomasi Massal dan Terpercaya
 
-**SIOMAY** adalah aplikasi desktop Windows untuk membantu otomatisasi pembuatan dokumen administrasi SE2026 secara massal dari data Microsoft Excel dan template Microsoft Word.
+**SIOMAY** adalah aplikasi desktop Windows untuk membuat dokumen administrasi Sensus Ekonomi 2026 (SE2026) secara massal dari data Microsoft Excel dan template Microsoft Word. Aplikasi memandu pengguna dari pemilihan dokumen hingga penyimpanan hasil, sekaligus memvalidasi input untuk mengurangi kesalahan dan menjaga konsistensi dokumen.
 
-Aplikasi ini dirancang untuk mempercepat proses pembuatan dokumen, mengurangi pekerjaan berulang, dan menjaga konsistensi hasil dokumen.
+> **Status:** Stable<br>
+> **Versi saat ini:** `v2026.1.5`<br>
+> **Platform rilis:** Windows x64
 
-> Status: **Stable**
-> Versi saat ini: **v2026.1.4**
+## Daftar Isi
 
-## Fitur
+- [Fitur Utama](#fitur-utama)
+- [Dokumen yang Didukung](#dokumen-yang-didukung)
+- [Persyaratan Sistem](#persyaratan-sistem)
+- [Instalasi](#instalasi)
+- [Cara Menggunakan](#cara-menggunakan)
+- [Gambar dan Bukti Dukung](#gambar-dan-bukti-dukung)
+- [Format Keluaran](#format-keluaran)
+- [Pembaruan Aplikasi](#pembaruan-aplikasi)
+- [Privasi dan Keamanan Data](#privasi-dan-keamanan-data)
+- [Pemecahan Masalah](#pemecahan-masalah)
+- [Untuk Pengembang](#untuk-pengembang)
+- [Rilis, Publisher, dan Lisensi](#rilis-publisher-dan-lisensi)
 
-SIOMAY mendukung pembuatan dokumen berikut:
+## Fitur Utama
 
-- Lampiran SPK PPL
-- Lampiran SPK PML
-- BAPP PPL Termin 1
-- BAPP PML Termin 1
-- SPP PPL Termin 1
-- SPP PML Termin 1
-- BAPP PPL Termin 2
-- BAPP PML Termin 2
-- SPP PPL Termin 2
-- SPP PML Termin 2
-- BAST PPL
-- BAST PML
+- Alur kerja terpandu dalam lima langkah: pilih dokumen, siapkan template Word, unggah data Excel, generate, dan simpan hasil.
+- 13 jenis/varian dokumen untuk PPL dan PML, termasuk alur terpisah untuk Termin 1 dan Termin 2.
+- Template DOCX dan format input XLSX bawaan yang dapat diunduh langsung dari aplikasi.
+- Validasi struktur workbook, sheet, kolom, relasi data, dan nilai yang diperlukan sesuai jenis dokumen.
+- Validasi template Word sebelum generate, termasuk placeholder yang hilang atau tidak dikenal.
+- Penggantian placeholder `{{nama_kolom}}` pada paragraf, tabel, header, dan footer, termasuk placeholder yang terpecah menjadi beberapa *run* Word.
+- Pembuatan DOCX massal dengan log proses, progres, timer aktif, serta ringkasan durasi.
+- Pengunduhan dan penyisipan bukti dukung dari Google Drive dalam format JPEG, PNG, HEIC, atau HEIF.
+- Koreksi orientasi foto berdasarkan metadata EXIF dan konversi HEIC/HEIF otomatis agar dapat dimasukkan ke DOCX.
+- Konversi seluruh DOCX ke PDF secara batch melalui LibreOffice *headless* yang dibundel dalam rilis Windows.
+- Estimasi waktu maksimum dan sisa waktu selama konversi PDF berdasarkan jenis dan jumlah dokumen.
+- Keluaran berupa ZIP DOCX asli, ZIP PDF per petugas, atau satu PDF gabungan dengan urutan dokumen tetap terjaga.
+- Pemeriksaan pembaruan berdasarkan kanal stable/beta dan akses langsung ke halaman GitHub Releases resmi.
 
-Kemampuan utama:
+## Dokumen yang Didukung
 
-- Memilih jenis dokumen melalui alur kerja bertahap.
-- Menggunakan template dokumen bawaan atau template `.docx` dari pengguna.
-- Mengunduh format/template data Excel yang diperlukan.
-- Memvalidasi struktur data Excel sebelum proses generate.
-- Menghasilkan dokumen `.docx` secara massal dari setiap baris data.
-- Mengonversi dokumen ke PDF dengan LibreOffice yang dibundel di rilis Windows.
-- Menggabungkan PDF dan/atau membuat arsip ZIP hasil dokumen.
-- Membuka lokasi hasil dokumen langsung melalui Windows Explorer.
+| Kelompok | Dokumen | Catatan utama |
+|---|---|---|
+| Lampiran SPK | Lampiran SPK PPL | Dokumen massal untuk Petugas Lapangan |
+| Lampiran SPK | Lampiran SPK PML | Dokumen massal untuk Pemeriksa Lapangan |
+| BAPP Termin 1 | BAPP PPL Termin 1 | Mendukung bukti dukung Google Drive dalam grid adaptif |
+| BAPP Termin 1 | BAPP PML Termin 1 | Mendukung bukti dukung Google Drive dalam grid adaptif |
+| SPP Termin 1 | SPP PPL Termin 1 | Alur dan format input khusus Termin 1 |
+| SPP Termin 1 | SPP PML Termin 1 | Alur dan format input khusus Termin 1 |
+| BAPP Termin 2 | BAPP PPL Termin 2 | Pilihan grid adaptif atau satu gambar per halaman |
+| BAPP Termin 2 | BAPP PML Termin 2 | Pilihan grid adaptif atau satu gambar per halaman |
+| SPP Termin 2 | SPP PPL Termin 2 | Alur, template, dan validasi khusus Termin 2 |
+| SPP Termin 2 | SPP PML Termin 2 | Alur, template, dan validasi khusus Termin 2 |
+| BAST | BAST PPL | Mengolah data mitra, supervisi, alokasi tugas, dan bukti dukung |
+| BAST | BAST PML | Mengolah data mitra, supervisi, alokasi tugas, dan bukti dukung |
+| Bukti Terima | Bukti Terima Paket Internet | Satu dokumen multi-halaman dengan grid foto 2×2 per halaman A4; tanpa template Word |
+
+Nomor urut BAPP Termin 2 dan BAST yang bersifat numerik diformat menjadi tiga digit, misalnya `1` menjadi `001` dan `21` menjadi `021`. Nilai alfanumerik tetap dipertahankan.
 
 ## Persyaratan Sistem
 
@@ -42,129 +65,209 @@ Kemampuan utama:
 |---|---|
 | Sistem operasi | Windows 10 64-bit versi 1809 atau lebih baru; Windows 11 didukung |
 | Arsitektur | x64 |
-| Microsoft Excel | Disarankan untuk mengisi atau memeriksa file input `.xlsx` |
-| Microsoft Word desktop | Tidak diperlukan untuk konversi DOCX ke PDF |
-| Koneksi internet | Diperlukan untuk memeriksa dan mengunduh pembaruan aplikasi |
+| Ruang penyimpanan | Sediakan ruang untuk aplikasi, LibreOffice terbundel, file sementara, dan hasil dokumen |
+| Microsoft Excel | Disarankan untuk mengisi dan memeriksa berkas input `.xlsx` |
+| Microsoft Word desktop | Diperlukan bila ingin menyunting template DOCX; tidak diperlukan untuk konversi PDF |
+| Koneksi internet | Diperlukan untuk bukti dukung Google Drive dan pemeriksaan pembaruan |
 | Python | Tidak perlu diinstal oleh pengguna akhir |
 
-> Rilis Windows menyertakan LibreOffice untuk konversi PDF. Jangan menghapus folder `LibreOffice` yang berada di samping `SIOMAY.exe` setelah mengekstrak ZIP.
+> Rilis portable menyertakan LibreOffice. Folder `LibreOffice` harus tetap berada di dalam folder aplikasi, di samping `SIOMAY.exe`, agar pilihan keluaran PDF tersedia.
 
 ## Instalasi
 
-1. Buka halaman [Releases](https://github.com/Mjulianfr001056/siomay-se26/releases).
-2. Unduh arsip `SIOMAY-<tag>-windows.zip` dari rilis yang sesuai.
-3. Ekstrak seluruh isi ZIP ke folder yang dapat ditulis, misalnya `Documents\SIOMAY`.
-4. Jalankan `SIOMAY\SIOMAY.exe`.
+1. Buka halaman [GitHub Releases SIOMAY](https://github.com/Mjulianfr001056/siomay-se26/releases).
+2. Pilih rilis yang diinginkan dan unduh `SIOMAY-<tag>-windows.zip`.
+3. Cocokkan checksum SHA-256 arsip dengan nilai yang tercantum pada catatan rilis.
+4. Ekstrak **seluruh** isi ZIP ke folder yang dapat ditulis, misalnya `Documents\SIOMAY`.
+5. Jalankan `SIOMAY\SIOMAY.exe` dari folder hasil ekstraksi.
 
-Gunakan tag tanpa tanda hubung (misalnya `v2026.1.1`) untuk rilis stabil. Tag yang memiliki suffix setelah tanda hubung (misalnya `v2026.1.2-beta.1`) adalah rilis beta/prerelease.
+Jangan menjalankan aplikasi langsung dari dalam ZIP dan jangan memindahkan `SIOMAY.exe` tanpa folder pendampingnya. Tag tanpa suffix, misalnya `v2026.1.5`, merupakan rilis stabil; tag dengan suffix, misalnya `v2026.1.5-beta.1`, merupakan prerelease/beta.
 
-Jika Windows menampilkan peringatan keamanan, pastikan ZIP diperoleh langsung dari halaman Releases resmi proyek ini dan periksa nilai SHA-256 yang disertakan pada rilis.
+Jika Windows menampilkan peringatan keamanan, pastikan paket berasal dari halaman Releases resmi dan checksum-nya sesuai. Executable proyek saat ini belum dinyatakan memiliki tanda tangan kode Windows.
 
 ## Cara Menggunakan
 
-1. **Pilih Dokumen**  
-   Pilih jenis dokumen administrasi yang ingin dibuat.
+### 1. Pilih Dokumen
 
-2. **Template Dokumen**  
-   Gunakan template bawaan atau unggah template Microsoft Word (`.docx`) yang sesuai.
+Pilih satu jenis dokumen untuk sesi saat ini. Setiap pilihan menentukan template Word, format Excel, validator, generator, nama keluaran, dan varian PPL/PML yang digunakan.
 
-3. **Upload Data**  
-   Unduh format Excel bila diperlukan, isi data sesuai kolom yang tersedia, lalu unggah file `.xlsx`.
+### 2. Siapkan Template Dokumen
 
-4. **Generate**  
-   Periksa hasil validasi data dan mulai proses pembuatan dokumen.
+Untuk dokumen berbasis template:
 
-5. **Simpan & Selesai**  
-   Simpan hasil dalam format DOCX, PDF, PDF gabungan, atau ZIP sesuai opsi yang tersedia.
+1. Klik **Download Template Word**.
+2. Sunting salinannya di Microsoft Word tanpa menghapus atau mengganti penanda `{{nama_kolom}}`.
+3. Simpan sebagai `.docx`.
+4. Klik **Pilih Template Word (.docx)** untuk mengunggah kembali template yang telah disunting.
+
+SIOMAY memeriksa placeholder di isi dokumen, tabel, header, dan footer. Template ditolak bila placeholder wajib hilang atau terdapat placeholder yang tidak dikenal. Bukti Terima Paket Internet dibuat dari dokumen kosong sehingga langkah ini tidak memerlukan template Word.
+
+### 3. Unggah dan Validasi Data
+
+1. Klik **Download Template Excel** untuk memperoleh format yang sesuai dengan dokumen terpilih.
+2. Isi workbook tanpa mengganti nama sheet atau kolom yang diwajibkan.
+3. Simpan dalam format `.xlsx`, lalu unggah ke SIOMAY.
+4. Periksa ringkasan hasil validasi dan perbaiki kesalahan yang ditampilkan sebelum melanjutkan.
+
+Jangan menggunakan format Excel dari kelompok atau termin lain. SPP Termin 1 dan Termin 2 memiliki alur input dan validasi yang terpisah.
+
+### 4. Generate Dokumen
+
+Periksa ringkasan dokumen, template, dan sumber data, lalu klik **Mulai Generate Dokumen**. SIOMAY menampilkan progres, log aktivitas per baris, peringatan yang tidak menghentikan batch, serta ringkasan waktu pembuatan.
+
+Khusus BAPP Termin 2, pilih salah satu tata letak bukti dukung:
+
+- **Grid adaptif:** maksimal lima gambar, dengan ukuran menyesuaikan halaman.
+- **Halaman khusus:** seluruh gambar ditempatkan satu per halaman tanpa batas lima gambar dari mode grid.
+
+### 5. Simpan Hasil
+
+Pilih format keluaran yang tersedia, tentukan lokasi penyimpanan, lalu tunggu proses selesai. Untuk keluaran PDF, dialog menampilkan timer, estimasi durasi maksimum, dan perkiraan sisa waktu. Setelah selesai, aplikasi menampilkan lokasi, ukuran berkas, ringkasan durasi, tombol **Buka Folder**, dan pilihan untuk memulai sesi baru.
+
+## Gambar dan Bukti Dukung
+
+Alur BAPP, BAST, dan Bukti Terima dapat menggunakan tautan Google Drive untuk mengambil foto atau tangkapan layar. Agar gambar dapat diunduh:
+
+- Atur akses file menjadi **Anyone with the link / Siapa saja yang memiliki tautan**.
+- Jika file berasal dari folder unggahan Google Forms, pastikan folder tersebut juga dapat diakses melalui tautan.
+- Gunakan tautan file Google Drive yang valid; beberapa tautan dapat dipisahkan dengan koma pada kolom yang mendukung banyak gambar.
+- Format JPEG, PNG, HEIC, dan HEIF didukung. Orientasi EXIF diterapkan otomatis.
+- Respons HTML, file kosong, dan gambar rusak/tidak dikenal dilaporkan sebagai peringatan tanpa harus menggagalkan seluruh batch.
+
+Perhatikan bahwa penggunaan tautan yang dapat diakses siapa saja memiliki implikasi privasi. Batasi isi gambar pada data yang memang diperlukan, dan cabut akses tautan setelah proses selesai bila kebijakan kerja mengharuskannya.
+
+## Format Keluaran
+
+| Pilihan | Hasil | Keterangan |
+|---|---|---|
+| ZIP DOCX | Arsip `.zip` berisi DOCX asli | Paling cepat karena tidak melakukan konversi PDF |
+| ZIP PDF | Arsip `.zip` berisi PDF per petugas/dokumen | Seluruh DOCX dikonversi dalam satu proses batch LibreOffice |
+| PDF gabungan | Satu `.pdf` multi-halaman | Disusun mengikuti urutan hasil generate dan siap dicetak dari satu berkas |
+
+Bukti Terima Paket Internet selalu dibuat sebagai satu dokumen multi-halaman yang memuat seluruh petugas. Bila LibreOffice tidak ditemukan, aplikasi tetap dapat menyimpan ZIP DOCX, tetapi pilihan PDF dinonaktifkan.
 
 ## Pembaruan Aplikasi
 
-SIOMAY menyediakan pemeriksaan pembaruan untuk memperoleh perbaikan dan fitur baru.
+SIOMAY memeriksa manifest pembaruan sesuai kanal build:
 
-- Pembaruan patch dapat memperbaiki masalah tanpa mengubah alur utama aplikasi.
-- Pembaruan versi dapat menambah jenis dokumen, template, validasi, atau fitur baru.
-- Saat pembaruan tersedia, SIOMAY akan menampilkan informasi versi dan catatan perubahan.
-- Saat pembaruan tersedia, pengguna diarahkan ke halaman GitHub Releases resmi untuk mengunduh ZIP secara manual.
+- Build stabil memeriksa kanal **stable**.
+- Build beta memeriksa kanal **beta**.
+- Manifest dan tautan divalidasi agar hanya mengarah ke area Releases repositori GitHub resmi.
+- Aplikasi hanya menampilkan versi dan catatan rilis lalu membuka halaman unduhan resmi; aplikasi tidak mengunduh atau menjalankan installer secara otomatis.
 
-Build beta memeriksa manifest kanal **beta**, sedangkan build stabil memeriksa kanal **stable**.
+Setelah mengunduh versi baru, ekstrak paket ke folder baru dan pertahankan seluruh struktur paket, termasuk folder `LibreOffice`.
 
-## Umpan Balik dan Pelaporan Masalah
+## Privasi dan Keamanan Data
 
-Masukan pengguna tetap penting untuk membantu peningkatan kualitas SIOMAY.
+- Workbook Excel, template Word, dan dokumen hasil diproses secara lokal di komputer pengguna.
+- Aplikasi tidak mengunggah data input atau hasil generate sebagai bagian dari proses pembuatan dokumen.
+- Koneksi keluar digunakan untuk mengambil gambar dari tautan yang dimasukkan pengguna dan untuk mengambil metadata pembaruan.
+- Hasil disimpan hanya ke lokasi yang dipilih pengguna.
+- Jangan membagikan workbook, hasil dokumen, log, atau tangkapan layar yang mengandung NIK, nomor telepon, maupun data pribadi lain melalui kanal publik.
 
-Saat melaporkan masalah, sertakan:
+## Pemecahan Masalah
 
-- Versi aplikasi yang digunakan.
-- Jenis dokumen yang diproses.
-- Langkah-langkah sebelum masalah terjadi.
-- Pesan kesalahan atau tangkapan layar, bila aman untuk dibagikan.
-- Informasi apakah folder `LibreOffice` masih berada di samping `SIOMAY.exe`.
+### Pilihan PDF tidak tersedia
 
-**Jangan mengirim file Excel, dokumen hasil, atau tangkapan layar yang mengandung data pribadi/sensitif melalui kanal publik.**
+Pastikan folder `LibreOffice` masih utuh dan berada di samping `SIOMAY.exe`. Ekstrak ulang ZIP resmi bila folder hilang atau tidak lengkap. ZIP DOCX tetap dapat digunakan tanpa LibreOffice.
 
-Saluran umpan balik dicantumkan pada halaman rilis aplikasi.
+### Template Word ditolak
 
-## Privasi Data
+Unduh kembali template untuk dokumen terpilih. Pertahankan semua placeholder `{{nama_kolom}}`, jangan menambahkan placeholder baru, dan unggah berkas berformat `.docx`, bukan `.doc`.
 
-SIOMAY memproses file yang dipilih pengguna secara lokal di komputer pengguna.
+### Data Excel tidak valid
 
-- Data Excel dan dokumen tidak diunggah oleh aplikasi sebagai bagian dari proses generate.
-- Hasil dokumen disimpan di lokasi yang dipilih pengguna.
-- Pemeriksaan pembaruan hanya mengambil informasi versi rilis.
-- Pengiriman log diagnostik atau umpan balik, bila tersedia, harus dilakukan dengan persetujuan pengguna.
+Gunakan template Excel yang diunduh setelah memilih dokumen. Jangan mengubah nama sheet/kolom, pastikan kolom wajib tersedia, dan gunakan format untuk termin serta peran yang benar.
+
+### Gambar Google Drive tidak muncul
+
+Periksa akses **Siapa saja yang memiliki tautan**, validitas URL, koneksi internet, dan isi file. Halaman login/HTML bukan file gambar dan akan ditolak.
+
+### Melaporkan masalah
+
+Sertakan versi aplikasi, jenis dokumen, langkah untuk mereproduksi masalah, dan pesan error. Sebelum mengirim tangkapan layar atau log, hapus seluruh data pribadi/sensitif. Kanal umpan balik tersedia pada halaman rilis aplikasi.
 
 ## Untuk Pengembang
 
 ### Teknologi
 
-- Python
+- Python 3.13–3.14 (Python 3.14 untuk pengembangan/CI; runtime Windows Flet saat ini menggunakan Python 3.13)
 - [Flet](https://flet.dev/)
-- pandas
-- openpyxl
+- pandas dan openpyxl
 - python-docx
+- Pillow dan pillow-heif
 - pypdf
-- LibreOffice (runtime native yang dibundel saat rilis Windows)
+- requests dan certifi
+- LibreOffice sebagai runtime native untuk konversi PDF
 
 ### Menjalankan dari kode sumber
 
-1. Instal Python 3.14.
-2. Buat dan aktifkan virtual environment.
-3. Instal dependensi:
+Prasyarat: Windows, Python 3.14, Git, dan PowerShell.
 
-   ```powershell
-   py -3.14 -m pip install .
-   ```
-
-4. Jalankan aplikasi:
-
-   ```powershell
-   python app.py
-   ```
-
-### Struktur penting proyek
-
-```text
-app.py       Entrypoint aplikasi Flet
-src/         Logika workflow, validasi, dan generator dokumen
-utils/       Utilitas UI, file, dan PDF
-template/    Template DOCX bawaan
-input/       Template Excel bawaan
+```powershell
+git clone https://github.com/Mjulianfr001056/siomay-se26.git
+cd siomay-se26
+py -3.14 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install .
+python app.py
 ```
 
-## Rilis
+PDF membutuhkan LibreOffice. Aplikasi akan mencari bundle lokal, instalasi Windows standar, lalu `soffice` pada `PATH`. Untuk memasang versi pengembangan yang sama dengan proses rilis ke folder `LibreOffice/` lokal:
 
-Rilis aplikasi tersedia di:
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install_lo_dev.ps1
+```
 
-<https://github.com/Mjulianfr001056/siomay-se26/releases>
+Unduhan LibreOffice berukuran sekitar 340 MB. Skrip memeriksa kegagalan HTTP, ukuran minimum, dan header MSI sebelum instalasi. Folder lokal `LibreOffice/` diabaikan oleh Git.
 
-Versi awal pilot:
+### Menjalankan validasi dan pengujian
 
-- `v2026.1-beta.1`
+```powershell
+python -m compileall -q app.py src utils
+python -m unittest discover -s tests -v
+```
 
-## Publisher
+Suite pengujian mencakup generator dokumen, pemisahan routing workflow, placeholder DOCX, gambar JPEG/PNG/HEIC, tata letak BAPP Termin 2, konversi PDF batch, estimasi konversi, pembaruan/rilis, dan helper UI.
 
-**6304 - Muhammad Julian Firdaus, S.Tr.Stat.**
+### Build Windows
 
-## Lisensi
+Build membutuhkan Visual Studio dengan workload **Desktop development with C++** dan, pada kondisi tertentu, Windows Developer Mode. Jalankan:
 
-Lisensi proyek akan ditentukan.
+```powershell
+py -3.14 -m pip install .
+.\scripts\build-windows.ps1
+```
+
+Untuk build installer opsional, instal Inno Setup 6 lalu gunakan:
+
+```powershell
+.\scripts\build-windows.ps1 -Installer
+```
+
+Detail proses publikasi, runtime Flet, isi paket, checksum, dan kanal pembaruan tersedia di [`docs/RELEASING.md`](docs/RELEASING.md).
+
+### Struktur proyek
+
+```text
+app.py          Entrypoint dan antarmuka wizard Flet
+src/            Katalog workflow, validator, dan generator dokumen
+utils/          Utilitas file, gambar, PDF, estimasi, dan UI
+template/       Template DOCX bawaan
+input/          Template/formats input XLSX bawaan
+tests/          Unit test dan regression test
+scripts/        Skrip setup LibreOffice dan build Windows
+installer/      Konfigurasi installer Windows opsional
+updates/        Manifest kanal stable dan beta
+docs/           Dokumentasi teknis dan panduan rilis
+```
+
+## Rilis, Publisher, dan Lisensi
+
+- **Rilis:** <https://github.com/Mjulianfr001056/siomay-se26/releases>
+- **Changelog:** [`CHANGELOG.md`](CHANGELOG.md)
+- **Publisher:** 6304 - Muhammad Julian Firdaus, S.Tr.Stat.
+- **Application ID:** `id.go.bps.siomay`
+
+Repositori ini belum menyertakan berkas lisensi. Hak untuk menggunakan, memodifikasi, atau mendistribusikan kode tidak boleh diasumsikan sampai lisensi proyek ditetapkan.

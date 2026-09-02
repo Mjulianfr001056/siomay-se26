@@ -4,6 +4,24 @@ Semua perubahan penting pada proyek SIOMAY didokumentasikan di berkas ini. Forma
 
 ---
 
+## [v2026.1.5] - 2026-09-02
+
+### Dokumen SPP Termin 1 dan Termin 2
+- **Dukungan SPP Termin 2**: Menambahkan generator, template DOCX, dan berkas input Excel khusus SPP Termin 2 untuk petugas PPL maupun PML.
+- **Pemisahan Alur SPP**: SPP yang sudah ada diperjelas sebagai SPP Termin 1, dengan pemilihan dokumen, validasi data, dan perutean generator yang terpisah untuk setiap termin.
+- **Penyesuaian Urutan Dokumen**: Aset BAST dan Bukti Terima dipindahkan mengikuti penambahan SPP Termin 2 agar urutan template dan input tetap konsisten.
+
+### Peningkatan Proses dan Validasi
+- **Estimasi Konversi PDF**: Menampilkan estimasi waktu maksimum dan perkiraan sisa waktu berdasarkan jenis dokumen serta jumlah berkas yang akan dikonversi.
+- **Validasi Template DOCX**: Memeriksa kelengkapan dan kesesuaian placeholder template sebelum dokumen dibuat sehingga kesalahan template dapat dilaporkan lebih awal dan lebih jelas.
+- **Nomor Urut Tiga Digit**: Nomor urut BAPP Termin 2 dan BAST dari Excel kini dipertahankan dalam format tiga digit, misalnya `001` dan `021`, tanpa mengubah nomor alfanumerik.
+
+### Distribusi dan Lingkungan Pengembangan
+- **Instalasi LibreOffice Andal**: Menggunakan arsip resmi LibreOffice `25.8.7.2` yang immutable serta menambahkan pemeriksaan kegagalan HTTP, ukuran minimum berkas, dan signature MSI sebelum instalasi.
+- Menambahkan dan memperbarui pengujian regresi untuk SPP Termin 1/2, perutean alur kerja, validasi template, estimasi konversi, dan format nomor urut.
+
+---
+
 ## [v2026.1.4] - 2026-09-01
 
 ### Dukungan Gambar
