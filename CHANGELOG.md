@@ -15,6 +15,7 @@ Semua perubahan penting pada proyek SIOMAY didokumentasikan di berkas ini. Forma
 ### Keandalan dan Pengujian
 - Memperbaiki penghapusan placeholder bukti dukung BAST saat tautan kosong atau placeholder terpecah menjadi beberapa *run* Word.
 - Popup pembaruan kini mengambil dan menampilkan catatan perubahan dari rilis GitHub yang lebih baru agar pengguna dapat meninjaunya sebelum memilih untuk memperbarui.
+- Menambahkan undangan feedback pada penggunaan kedua dan tombol feedback permanen di header aplikasi.
 - Menambahkan pengujian PDF multipage, bukti campuran, paginasi grid, pilihan tata letak BAPP Termin 2, dan integrasi BAST.
 
 ---

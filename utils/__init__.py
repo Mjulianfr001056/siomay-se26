@@ -23,6 +23,11 @@ from utils.conversion_estimation import (
     format_estimated_duration,
 )
 from utils.debounce import DebounceGate
+from utils.feedback import (
+    FEEDBACK_URL,
+    dismiss_feedback_prompt,
+    record_launch_and_should_prompt,
+)
 from utils.pdf_tools import (
     MERGE_AVAILABLE,
     PDF_AVAILABLE,
@@ -44,6 +49,7 @@ from utils.ui import (
 __all__ = [
     "CONVERSION_BENCHMARKS",
     "DebounceGate",
+    "FEEDBACK_URL",
     "MERGE_AVAILABLE",
     "PDF_AVAILABLE",
     "LOG_STYLES",
@@ -53,6 +59,7 @@ __all__ = [
     "convert_docx_files_to_pdf",
     "convert_docx_to_pdf",
     "duration_info_box",
+    "dismiss_feedback_prompt",
     "ensure_extension",
     "estimate_conversion_seconds",
     "file_order_key",
@@ -64,6 +71,7 @@ __all__ = [
     "merge_pdfs",
     "open_external_url",
     "open_in_explorer",
+    "record_launch_and_should_prompt",
     "save_dialog_options",
     "stat_box",
     "zip_files",

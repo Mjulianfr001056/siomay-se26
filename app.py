@@ -58,6 +58,7 @@ from src.release import (
 from src.updates import check_for_update
 from utils import (
     DebounceGate,
+    FEEDBACK_URL,
     MERGE_AVAILABLE,
     PDF_AVAILABLE,
     close_window,
@@ -65,6 +66,7 @@ from utils import (
     conversion_workload,
     convert_docx_files_to_pdf,
     duration_info_box,
+    dismiss_feedback_prompt,
     ensure_extension,
     estimate_conversion_seconds,
     file_order_key,
@@ -75,6 +77,7 @@ from utils import (
     merge_pdfs,
     open_external_url,
     open_in_explorer,
+    record_launch_and_should_prompt,
     save_dialog_options,
     stat_box,
     zip_files,
@@ -191,6 +194,31 @@ def main(page: ft.Page):
             ],
         )
         page.show_dialog(about_dialog)
+
+    def show_feedback(e=None, resume_update_check: bool = False):
+        """Invite the user to send feedback through the official BPS form."""
+        def finish(send: bool):
+            dismiss_feedback_prompt()
+            close_dialog(feedback_dialog)
+            if send:
+                open_external_url(FEEDBACK_URL, page)
+            if resume_update_check:
+                page.run_task(on_check_updates)
+
+        feedback_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Bantu tingkatkan SIOMAY"),
+            content=ft.Text(
+                "Bagaimana pengalaman Anda menggunakan SIOMAY? Masukan Anda membantu "
+                "kami meningkatkan aplikasi.",
+                size=13,
+            ),
+            actions=[
+                ft.TextButton("Nanti", on_click=lambda _: finish(False)),
+                ft.FilledButton("Kirim feedback", on_click=lambda _: finish(True)),
+            ],
+        )
+        page.show_dialog(feedback_dialog)
 
     async def on_check_updates(e=None):
         """Check GitHub metadata only; installers are never run by this app."""
@@ -2615,6 +2643,12 @@ def main(page: ft.Page):
                     tooltip="Tentang SIOMAY",
                     on_click=show_about,
                 ),
+                ft.IconButton(
+                    icon=ft.Icons.FEEDBACK_OUTLINED,
+                    icon_color=ft.Colors.BLUE_800,
+                    tooltip="Kirim feedback",
+                    on_click=lambda _: open_external_url(FEEDBACK_URL, page),
+                ),
                 ft.Container(
                     content=ft.Text(f"{DISPLAY_VERSION} · {RELEASE_CHANNEL.title()}", size=11,
                                     weight=ft.FontWeight.W_600,
@@ -2699,7 +2733,10 @@ def main(page: ft.Page):
         log("Konversi PDF nonaktif (LibreOffice bundel tidak ditemukan).", "WARN")
     update_nav()
     render_tracker()
-    page.run_task(on_check_updates)
+    if record_launch_and_should_prompt():
+        show_feedback(resume_update_check=True)
+    else:
+        page.run_task(on_check_updates)
 
 
 if __name__ == "__main__":
