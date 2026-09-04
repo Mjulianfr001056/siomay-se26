@@ -5,7 +5,7 @@
 **SIOMAY** adalah aplikasi desktop Windows untuk membuat dokumen administrasi Sensus Ekonomi 2026 (SE2026) secara massal dari data Microsoft Excel dan template Microsoft Word. Aplikasi memandu pengguna dari pemilihan dokumen hingga penyimpanan hasil, sekaligus memvalidasi input untuk mengurangi kesalahan dan menjaga konsistensi dokumen.
 
 > **Status:** Stable<br>
-> **Versi saat ini:** `v2026.1.5`<br>
+> **Versi saat ini:** `v2026.1.6`<br>
 > **Platform rilis:** Windows x64
 
 ## Daftar Isi
@@ -81,7 +81,7 @@ Nomor urut BAPP Termin 2 dan BAST yang bersifat numerik diformat menjadi tiga di
 4. Ekstrak **seluruh** isi ZIP ke folder yang dapat ditulis, misalnya `Documents\SIOMAY`.
 5. Jalankan `SIOMAY\SIOMAY.exe` dari folder hasil ekstraksi.
 
-Jangan menjalankan aplikasi langsung dari dalam ZIP dan jangan memindahkan `SIOMAY.exe` tanpa folder pendampingnya. Tag tanpa suffix, misalnya `v2026.1.5`, merupakan rilis stabil; tag dengan suffix, misalnya `v2026.1.5-beta.1`, merupakan prerelease/beta.
+Jangan menjalankan aplikasi langsung dari dalam ZIP dan jangan memindahkan `SIOMAY.exe` tanpa folder pendampingnya. Tag tanpa suffix, misalnya `v2026.1.6`, merupakan rilis stabil; tag dengan suffix, misalnya `v2026.1.6-beta.1`, merupakan prerelease/beta.
 
 Jika Windows menampilkan peringatan keamanan, pastikan paket berasal dari halaman Releases resmi dan checksum-nya sesuai. Executable proyek saat ini belum dinyatakan memiliki tanda tangan kode Windows.
 

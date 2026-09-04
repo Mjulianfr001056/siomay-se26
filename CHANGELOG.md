@@ -4,6 +4,20 @@ Semua perubahan penting pada proyek SIOMAY didokumentasikan di berkas ini. Forma
 
 ---
 
+## [v2026.1.6] - 2026-09-04
+
+### Bukti Dukung BAST dan BAPP Termin 2
+- **Pilihan Tata Letak BAST**: Menambahkan pilihan grid adaptif atau satu gambar per halaman untuk bukti dukung BAST PPL dan PML.
+- **Dukungan PDF**: Bukti dukung PDF dari Google Drive kini didukung pada BAST dan BAPP Termin 2; setiap halaman PDF selalu ditempatkan pada halaman DOCX khusus.
+- **Urutan Bukti Campuran**: Urutan gambar dan PDF dipertahankan, sementara gambar setelah PDF kembali mengikuti tata letak yang dipilih.
+- **Paginasi Grid**: Bukti gambar dalam mode grid diproses per kelompok hingga lima gambar agar seluruh bukti tetap dimasukkan.
+
+### Keandalan dan Pengujian
+- Memperbaiki penghapusan placeholder bukti dukung BAST saat tautan kosong atau placeholder terpecah menjadi beberapa *run* Word.
+- Menambahkan pengujian PDF multipage, bukti campuran, paginasi grid, pilihan tata letak BAPP Termin 2, dan integrasi BAST.
+
+---
+
 ## [v2026.1.5] - 2026-09-02
 
 ### Dokumen SPP Termin 1 dan Termin 2
