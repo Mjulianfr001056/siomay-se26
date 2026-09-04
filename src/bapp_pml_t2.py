@@ -20,16 +20,13 @@ import re
 
 import pandas as pd
 from docx import Document
-from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
-from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Inches, Pt
 from utils.images import (
     HAS_HEIF,
     HAS_PIL,
-    download_drive_image as _download_drive_image,
+    download_drive_evidence as _download_drive_evidence,
 )
+from utils.evidence import insert_evidence as _insert_evidence
 
 
 # -- Skema input Excel ------------------------------------------------
@@ -58,22 +55,8 @@ PLACEHOLDER_MAP = {
 BUKTI_PLACEHOLDER = "{{bukti_dukung_bapp_t2}}"
 LINK_COLUMN = "bukti_dukung_bapp_t2"
 
-# Grid layout constants (from notebook)
-GRID_LAYOUTS = {
-    1: [1],
-    2: [2],
-    3: [2, 1],
-    4: [2, 2],
-    5: [3, 2],
-}
-
-GRID_MAX_WIDTH_IN  = 9.2
-GRID_MAX_HEIGHT_IN = 4.6
-GRID_GAP_IN        = 0.12
-
 IMAGE_LAYOUT_GRID = "grid"
 IMAGE_LAYOUT_DEDICATED_PAGES = "dedicated_pages"
-IMAGE_LAYOUTS = {IMAGE_LAYOUT_GRID, IMAGE_LAYOUT_DEDICATED_PAGES}
 DEDICATED_MAX_WIDTH_IN = 7.5
 DEDICATED_MAX_HEIGHT_IN = 4.0
 
@@ -286,193 +269,19 @@ def _extract_file_id(link: str):
     return None
 
 
-def _remove_table_borders(table):
-    tbl = table._tbl
-    tblPr = tbl.tblPr
-    borders = OxmlElement("w:tblBorders")
-    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
-        el = OxmlElement(f"w:{edge}")
-        el.set(qn("w:val"), "none")
-        el.set(qn("w:sz"), "0")
-        el.set(qn("w:space"), "0")
-        el.set(qn("w:color"), "auto")
-        borders.append(el)
-    tblPr.append(borders)
-
-
-def _set_cell_width(cell, width_in: float):
-    cell.width = Inches(width_in)
-    tcPr = cell._tc.get_or_add_tcPr()
-    tcW = tcPr.find(qn("w:tcW"))
-    if tcW is None:
-        tcW = OxmlElement("w:tcW")
-        tcPr.append(tcW)
-    tcW.set(qn("w:type"), "dxa")
-    tcW.set(qn("w:w"), str(int(width_in * 1440)))
-
-
-def _fit_box(img_w: int, img_h: int, box_w: float, box_h: float):
-    aspect = img_w / img_h
-    target_w, target_h = box_w, box_w / aspect
-    if target_h > box_h:
-        target_h = box_h
-        target_w = box_h * aspect
-    return target_w, target_h
-
-
 def insert_gdrive_images(doc: Document, links_str: str,
                          placeholder: str = None,
                          image_layout: str = IMAGE_LAYOUT_GRID):
-    """
-    Sisipkan screenshot sebagai grid atau satu gambar per halaman khusus.
-
-    Mode grid memakai maksimal lima tautan. Mode dedicated_pages tidak
-    membatasi jumlah tautan dan menambahkan setiap gambar pada halaman baru.
-    Returns (jumlah_gambar, daftar_peringatan).
-    """
-    if placeholder is None:
-        placeholder = BUKTI_PLACEHOLDER
-    if image_layout not in IMAGE_LAYOUTS:
-        raise ValueError(f"Mode tata letak gambar tidak dikenal: {image_layout}")
-    warnings_list = []
-
-    # Simpan paragraf jangkar sebelum token dibersihkan. Penggantian melalui
-    # helper juga menangani token yang dipecah Word menjadi beberapa run.
-    target_p = next((p for p in doc.paragraphs if placeholder in p.text), None)
-    if target_p is None:
-        return 0, ["Template tidak memiliki placeholder " + placeholder]
-    replace_text_preserving_runs(doc, {placeholder: ""})
-
-    if not HAS_PIL:
-        warnings_list.append("Pillow tidak terinstal - screenshot dilewati.")
-        return 0, warnings_list
-
-    if not links_str or not str(links_str).strip():
-        return 0, []
-
-    links = [l.strip() for l in str(links_str).split(",") if l.strip()]
-    if image_layout == IMAGE_LAYOUT_GRID and len(links) > 5:
-        links = links[:5]
-        warnings_list.append(
-            "Mode grid hanya memakai 5 tautan pertama. Gunakan mode halaman "
-            "khusus untuk menyisipkan seluruh gambar."
-        )
-
-    # Unduh semua gambar
-    images = []
-    for link in links:
-        file_id = _extract_file_id(link)
-        if not file_id:
-            warnings_list.append("Tautan tidak dikenali: " + link)
-            continue
-        try:
-            fh, img = _download_drive_image(file_id)
-            images.append((fh, img.size))
-            img.close()
-        except Exception as e:
-            msg = str(e)
-            if "403" in msg or "forbidden" in msg.lower():
-                warnings_list.append(f"Akses ditolak (403) untuk {file_id}")
-            elif "404" in msg:
-                warnings_list.append(f"File {file_id} tidak ditemukan")
-            else:
-                warnings_list.append(f"Gagal memuat {file_id}: {msg}")
-
-    n = len(images)
-    if n == 0:
-        return 0, warnings_list
-
-    if image_layout == IMAGE_LAYOUT_DEDICATED_PAGES:
-        section = doc.sections[-1]
-        page_w = section.page_width.inches
-        page_h = section.page_height.inches
-        content_w = page_w - section.left_margin.inches - section.right_margin.inches
-        content_h = page_h - section.top_margin.inches - section.bottom_margin.inches
-        # Sisakan ruang yang cukup untuk isi template dan judul pada halaman 4.
-        # python-docx tidak dapat mengukur sisa ruang hasil pagination Word, jadi
-        # gunakan kotak konservatif alih-alih memenuhi seluruh area cetak.
-        image_box_w = max(min(content_w, DEDICATED_MAX_WIDTH_IN), 1.0)
-        image_box_h = max(
-            min(content_h - 0.75, DEDICATED_MAX_HEIGHT_IN), 1.0
-        )
-        anchor = target_p._p
-
-        for image_number, (fh, image_size) in enumerate(images, start=1):
-            # Placeholder template sudah berada di awal halaman khusus
-            # (halaman 4), jadi gambar pertama tidak memerlukan page break.
-            # Gambar berikutnya masing-masing dimulai pada halaman baru.
-            if image_number > 1:
-                break_p = doc.add_paragraph()
-                break_p.add_run().add_break(WD_BREAK.PAGE)
-                anchor.addnext(break_p._p)
-                anchor = break_p._p
-
-            title_p = doc.add_paragraph()
-            title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            title_p.paragraph_format.space_after = Pt(8)
-            title_run = title_p.add_run(f"BUKTI DUKUNG ({image_number}/{n})")
-            title_run.bold = True
-            title_run.font.size = Pt(12)
-            anchor.addnext(title_p._p)
-            anchor = title_p._p
-
-            image_p = doc.add_paragraph()
-            image_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            image_p.paragraph_format.space_before = Pt(0)
-            image_p.paragraph_format.space_after = Pt(0)
-            target_w, target_h = _fit_box(
-                image_size[0], image_size[1], image_box_w, image_box_h
-            )
-            fh.seek(0)
-            image_p.add_run().add_picture(
-                fh, width=Inches(target_w), height=Inches(target_h)
-            )
-            anchor.addnext(image_p._p)
-            anchor = image_p._p
-        return n, warnings_list
-
-    layout = GRID_LAYOUTS.get(n, [3] * ((n + 2) // 3))
-    num_rows = len(layout)
-    row_h = (GRID_MAX_HEIGHT_IN - GRID_GAP_IN * (num_rows - 1)) / num_rows
-    anchor = target_p._p
-    img_idx = 0
-
-    for cols in layout:
-        col_w = (GRID_MAX_WIDTH_IN - GRID_GAP_IN * (cols - 1)) / cols
-        row_table = doc.add_table(rows=1, cols=cols)
-        row_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-        row_table.autofit = False
-        _remove_table_borders(row_table)
-
-        for c in range(cols):
-            cell = row_table.rows[0].cells[c]
-            _set_cell_width(cell, col_w)
-            tcPr = cell._tc.get_or_add_tcPr()
-            tcMar = OxmlElement("w:tcMar")
-            for side in ("top", "left", "bottom", "right"):
-                node = OxmlElement(f"w:{side}")
-                node.set(qn("w:w"), "60")
-                node.set(qn("w:type"), "dxa")
-                tcMar.append(node)
-            tcPr.append(tcMar)
-            cell_p = cell.paragraphs[0]
-            cell_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            cell_p.paragraph_format.space_before = Pt(0)
-            cell_p.paragraph_format.space_after = Pt(0)
-            if img_idx < n:
-                fh, image_size = images[img_idx]
-                img_w, img_h = image_size
-                target_w, target_h = _fit_box(img_w, img_h, col_w, row_h)
-                fh.seek(0)
-                run = cell_p.add_run()
-                run.add_picture(fh, width=Inches(target_w),
-                                height=Inches(target_h))
-                img_idx += 1
-
-        anchor.addnext(row_table._tbl)
-        anchor = row_table._tbl
-
-    return img_idx, warnings_list
+    """Sisipkan gambar/PDF; tiap halaman PDF selalu memakai halaman khusus."""
+    return _insert_evidence(
+        doc,
+        links_str,
+        placeholder or BUKTI_PLACEHOLDER,
+        image_layout,
+        _extract_file_id,
+        replace_text_preserving_runs,
+        _download_drive_evidence,
+    )
 
 
 def _slug(name: str) -> str:

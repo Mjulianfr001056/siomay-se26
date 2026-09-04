@@ -21,6 +21,22 @@ def _downloaded_image(_file_id):
     return stream, image
 
 
+def _evidence_image(_file_id):
+    stream, image = _downloaded_image(_file_id)
+    size = image.size
+    image.close()
+    return [("image", stream, size)]
+
+
+def _png_item(kind="image", color=(40, 100, 180)):
+    image = Image.new("RGB", (1200, 800), color=color)
+    stream = io.BytesIO()
+    image.save(stream, format="PNG")
+    image.close()
+    stream.seek(0)
+    return kind, stream, (1200, 800)
+
+
 def _document_with_placeholder(module):
     doc = Document()
     paragraph = doc.add_paragraph()
@@ -53,7 +69,7 @@ class BappTermin2ImageLayoutTests(unittest.TestCase):
                     _document_with_placeholder(module)
                 )
                 with patch.object(
-                    module, "_download_drive_image", side_effect=_downloaded_image
+                    module, "_download_drive_evidence", side_effect=_evidence_image
                 ) as downloader:
                     count, warnings = module.insert_gdrive_images(
                         doc,
@@ -98,7 +114,7 @@ class BappTermin2ImageLayoutTests(unittest.TestCase):
                     body_elements.index(trailing_paragraph._p),
                 )
 
-    def test_grid_keeps_five_image_limit_and_warning(self):
+    def test_grid_paginates_more_than_five_images(self):
         links = ",".join(
             f"https://drive.google.com/file/d/image-{number}/view"
             for number in range(1, 7)
@@ -108,17 +124,55 @@ class BappTermin2ImageLayoutTests(unittest.TestCase):
             with self.subTest(module=module.__name__):
                 doc, _, _ = _document_with_placeholder(module)
                 with patch.object(
-                    module, "_download_drive_image", side_effect=_downloaded_image
+                    module, "_download_drive_evidence", side_effect=_evidence_image
                 ) as downloader:
                     count, warnings = module.insert_gdrive_images(
                         doc, links, image_layout=module.IMAGE_LAYOUT_GRID
                     )
 
-                self.assertEqual(count, 5)
-                self.assertEqual(downloader.call_count, 5)
-                self.assertEqual(len(doc.inline_shapes), 5)
+                self.assertEqual(count, 6)
+                self.assertEqual(downloader.call_count, 6)
+                self.assertEqual(len(doc.inline_shapes), 6)
                 self.assertGreater(len(doc.tables), 0)
-                self.assertTrue(any("5 tautan pertama" in warning for warning in warnings))
+                self.assertEqual(warnings, [])
+                self.assertEqual(
+                    len(doc.element.body.xpath('.//w:br[@w:type="page"]')), 1
+                )
+
+    def test_pdf_pages_are_dedicated_then_images_resume_selected_grid(self):
+        links = ",".join(
+            f"https://drive.google.com/file/d/file-{number}/view"
+            for number in range(1, 4)
+        )
+
+        def evidence(file_id):
+            if file_id == "file-2":
+                return [_png_item("pdf_page", (180, 40, 40)),
+                        _png_item("pdf_page", (180, 80, 40))]
+            return [_png_item()]
+
+        for module in MODULES:
+            with self.subTest(module=module.__name__):
+                doc, _, _ = _document_with_placeholder(module)
+                with patch.object(
+                    module, "_download_drive_evidence", side_effect=evidence
+                ):
+                    count, warnings = module.insert_gdrive_images(
+                        doc, links, image_layout=module.IMAGE_LAYOUT_GRID
+                    )
+
+                self.assertEqual(count, 4)
+                self.assertEqual(warnings, [])
+                self.assertEqual(len(doc.inline_shapes), 4)
+                self.assertEqual(len(doc.tables), 2)
+                self.assertEqual(
+                    len(doc.element.body.xpath('.//w:br[@w:type="page"]')), 3
+                )
+                pdf_titles = [p.text for p in doc.paragraphs
+                              if p.text.startswith("BUKTI DUKUNG PDF")]
+                self.assertEqual(pdf_titles,
+                                 ["BUKTI DUKUNG PDF (2/4)",
+                                  "BUKTI DUKUNG PDF (3/4)"])
 
     def test_invalid_layout_is_rejected(self):
         for module in MODULES:

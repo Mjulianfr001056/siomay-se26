@@ -1,4 +1,4 @@
-"""Pengunduhan dan normalisasi gambar untuk penyisipan ke dokumen Word."""
+"""Pengunduhan dan normalisasi gambar/PDF untuk penyisipan ke dokumen Word."""
 
 from __future__ import annotations
 
@@ -6,6 +6,13 @@ import io
 import time
 
 import requests
+
+try:
+    import pymupdf as fitz
+
+    HAS_PDF_RENDERER = True
+except ImportError:  # pragma: no cover - dependency wajib pada paket aplikasi
+    HAS_PDF_RENDERER = False
 
 try:
     from PIL import Image, ImageFile, ImageOps, UnidentifiedImageError
@@ -92,17 +99,34 @@ def image_bytes_to_png(raw_bytes: bytes, content_type: str = ""):
     return png_file, image
 
 
-def download_drive_image(
-    file_id: str,
-    *,
-    max_retries: int = 3,
-    retry_delay: float = 2,
-    timeout: float = 30,
-):
-    """Unduh gambar publik Google Drive dan normalisasi hasilnya menjadi PNG."""
-    if not HAS_PIL:
-        raise RuntimeError("Pillow tidak terinstal.")
+def pdf_bytes_to_png_pages(raw_bytes: bytes):
+    """Render seluruh halaman PDF menjadi daftar ``(BytesIO PNG, ukuran)``."""
+    if not HAS_PDF_RENDERER:
+        raise RuntimeError("PyMuPDF tidak terinstal - file PDF tidak dapat diproses.")
+    if not raw_bytes:
+        raise RuntimeError("File PDF kosong.")
 
+    pages = []
+    try:
+        with fitz.open(stream=raw_bytes, filetype="pdf") as pdf:
+            if pdf.page_count == 0:
+                raise RuntimeError("File PDF tidak memiliki halaman.")
+            for page in pdf:
+                # 144 dpi cukup tajam untuk DOCX tanpa membuat hasil terlalu besar.
+                pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+                png_file = io.BytesIO(pixmap.tobytes("png"))
+                png_file.seek(0)
+                pages.append((png_file, (pixmap.width, pixmap.height)))
+    except RuntimeError:
+        raise
+    except Exception as exc:
+        raise RuntimeError(f"File PDF tidak dapat dibaca: {exc}") from exc
+    return pages
+
+
+def _download_drive_bytes(file_id: str, max_retries: int, retry_delay: float,
+                          timeout: float):
+    """Unduh byte file publik Google Drive beserta Content-Type respons."""
     session = requests.Session()
     try:
         for attempt in range(1, max_retries + 1):
@@ -119,40 +143,30 @@ def download_drive_image(
                     response.content, response.headers.get("Content-Type", "")
                 ):
                     token = next(
-                        (
-                            value
-                            for key, value in response.cookies.items()
-                            if key.startswith("download_warning")
-                        ),
+                        (value for key, value in response.cookies.items()
+                         if key.startswith("download_warning")),
                         None,
                     )
                     if token:
-                        response = session.get(
-                            _DRIVE_DOWNLOAD_URL,
-                            params={
-                                "export": "download",
-                                "id": file_id,
-                                "confirm": token,
-                            },
-                            stream=True,
-                            timeout=timeout,
-                        )
+                        params = {"export": "download", "id": file_id,
+                                  "confirm": token}
+                        url = _DRIVE_DOWNLOAD_URL
                     else:
-                        response = session.get(
-                            _DRIVE_DIRECT_URL,
-                            params={
-                                "id": file_id,
-                                "export": "download",
-                                "confirm": "t",
-                            },
-                            stream=True,
-                            timeout=timeout,
-                        )
+                        params = {"id": file_id, "export": "download",
+                                  "confirm": "t"}
+                        url = _DRIVE_DIRECT_URL
+                    response = session.get(
+                        url, params=params, stream=True, timeout=timeout
+                    )
                     response.raise_for_status()
 
-                return image_bytes_to_png(
-                    response.content, response.headers.get("Content-Type", "")
-                )
+                content_type = response.headers.get("Content-Type", "")
+                if _looks_like_html(response.content, content_type):
+                    raise RuntimeError(
+                        "Google Drive mengembalikan halaman HTML, bukan file. "
+                        "Pastikan akses file disetel untuk siapa saja yang memiliki tautan."
+                    )
+                return response.content, content_type
             except requests.RequestException as exc:
                 if attempt == max_retries:
                     raise RuntimeError(
@@ -162,3 +176,51 @@ def download_drive_image(
                 time.sleep(retry_delay)
     finally:
         session.close()
+
+
+def download_drive_image(
+    file_id: str,
+    *,
+    max_retries: int = 3,
+    retry_delay: float = 2,
+    timeout: float = 30,
+):
+    """Unduh gambar publik Google Drive dan normalisasi hasilnya menjadi PNG."""
+    if not HAS_PIL:
+        raise RuntimeError("Pillow tidak terinstal.")
+
+    raw_bytes, content_type = _download_drive_bytes(
+        file_id, max_retries, retry_delay, timeout
+    )
+    return image_bytes_to_png(raw_bytes, content_type)
+
+
+def download_drive_evidence(
+    file_id: str,
+    *,
+    max_retries: int = 3,
+    retry_delay: float = 2,
+    timeout: float = 30,
+):
+    """Unduh bukti Drive sebagai satu gambar atau seluruh halaman PDF.
+
+    Return value berupa daftar ``(kind, stream, (width, height))``. ``kind``
+    bernilai ``image`` atau ``pdf_page`` sehingga pemanggil dapat memaksa setiap
+    halaman PDF ke halaman Word tersendiri.
+    """
+    if not HAS_PIL:
+        raise RuntimeError("Pillow tidak terinstal.")
+    raw_bytes, content_type = _download_drive_bytes(
+        file_id, max_retries, retry_delay, timeout
+    )
+    is_pdf = raw_bytes.lstrip().startswith(b"%PDF-") or "application/pdf" in content_type.lower()
+    if is_pdf:
+        return [("pdf_page", stream, size)
+                for stream, size in pdf_bytes_to_png_pages(raw_bytes)]
+
+    stream, image = image_bytes_to_png(raw_bytes, content_type)
+    try:
+        size = image.size
+    finally:
+        image.close()
+    return [("image", stream, size)]

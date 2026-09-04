@@ -29,8 +29,9 @@ from docx import Document
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
-# Reuse image and placeholder helpers from BAPP PPL
-from src.bapp_ppl import (
+# Reuse evidence layout and placeholder helpers from BAPP T2 PPL
+from src.bapp_ppl_t2 import (
+    IMAGE_LAYOUT_GRID,
     replace_text_preserving_runs,
     insert_gdrive_images,
     _slug,
@@ -385,7 +386,8 @@ def _build_wilayah_data_pml(nik_pml, df_tugas, df_mitra, kec_map):
 #  Document generation
 # =====================================================================
 def _generate_one_doc(row, kind, df_tugas, df_mitra, kec_map,
-                      template_path, out_dir, idx, total):
+                      template_path, out_dir, idx, total,
+                      image_layout=IMAGE_LAYOUT_GRID):
     """Generate satu dokumen BAST (PPL atau PML). Yield event dicts."""
     nik = _norm(row.get("nik", ""))
     nama = _norm(row.get("nama_mitra", ""))
@@ -434,22 +436,17 @@ def _generate_one_doc(row, kind, df_tugas, df_mitra, kec_map,
         yield {"t": "log", "level": "WARN",
                "msg": "   Tabel wilayah kerja tidak ditemukan!"}
 
-    # Insert screenshots bukti dukung
-    if bukti_link:
-        n_img, img_warnings = insert_gdrive_images(
-            doc, bukti_link, placeholder=BUKTI_PLACEHOLDER
-        )
-        if n_img:
-            yield {"t": "log", "level": "INFO",
-                   "msg": f"   {n_img} screenshot disisipkan"}
-        for w in img_warnings:
-            yield {"t": "log", "level": "WARN", "msg": f"   {w}"}
-    else:
-        for p in doc.paragraphs:
-            if BUKTI_PLACEHOLDER in p.text:
-                for run in p.runs:
-                    if BUKTI_PLACEHOLDER in run.text:
-                        run.text = run.text.replace(BUKTI_PLACEHOLDER, "")
+    # Selalu proses placeholder, termasuk saat tautan kosong, agar token yang
+    # terpecah menjadi beberapa run Word juga dibersihkan.
+    n_img, img_warnings = insert_gdrive_images(
+        doc, bukti_link, placeholder=BUKTI_PLACEHOLDER,
+        image_layout=image_layout,
+    )
+    if n_img:
+        yield {"t": "log", "level": "INFO",
+               "msg": f"   {n_img} halaman/gambar bukti disisipkan"}
+    for warning in img_warnings:
+        yield {"t": "log", "level": "WARN", "msg": f"   {warning}"}
 
     kind_label = "PPL" if kind == "ppl" else "PML"
     safe_name = _slug(who)
@@ -465,7 +462,8 @@ def _generate_one_doc(row, kind, df_tugas, df_mitra, kec_map,
 # =====================================================================
 #  Main generator
 # =====================================================================
-def iter_generate(kind, dfs, template_path, out_dir):
+def iter_generate(kind, dfs, template_path, out_dir,
+                  image_layout=IMAGE_LAYOUT_GRID):
     """Generator populasi dokumen BAST (PPL atau PML).
 
     Yields event dicts:
@@ -523,7 +521,7 @@ def iter_generate(kind, dfs, template_path, out_dir):
 
         for ev in _generate_one_doc(
             row, kind, df_tugas, df_mitra, kec_map,
-            template_path, out_dir, idx, total,
+            template_path, out_dir, idx, total, image_layout,
         ):
             if ev["t"] == "file":
                 generated.append(ev["path"])

@@ -32,7 +32,7 @@
 - Validasi template Word sebelum generate, termasuk placeholder yang hilang atau tidak dikenal.
 - Penggantian placeholder `{{nama_kolom}}` pada paragraf, tabel, header, dan footer, termasuk placeholder yang terpecah menjadi beberapa *run* Word.
 - Pembuatan DOCX massal dengan log proses, progres, timer aktif, serta ringkasan durasi.
-- Pengunduhan dan penyisipan bukti dukung dari Google Drive dalam format JPEG, PNG, HEIC, atau HEIF.
+- Pengunduhan dan penyisipan bukti dukung dari Google Drive dalam format JPEG, PNG, HEIC, HEIF, atau PDF.
 - Koreksi orientasi foto berdasarkan metadata EXIF dan konversi HEIC/HEIF otomatis agar dapat dimasukkan ke DOCX.
 - Konversi seluruh DOCX ke PDF secara batch melalui LibreOffice *headless* yang dibundel dalam rilis Windows.
 - Estimasi waktu maksimum dan sisa waktu selama konversi PDF berdasarkan jenis dan jumlah dokumen.
@@ -115,10 +115,14 @@ Jangan menggunakan format Excel dari kelompok atau termin lain. SPP Termin 1 dan
 
 Periksa ringkasan dokumen, template, dan sumber data, lalu klik **Mulai Generate Dokumen**. SIOMAY menampilkan progres, log aktivitas per baris, peringatan yang tidak menghentikan batch, serta ringkasan waktu pembuatan.
 
-Khusus BAPP Termin 2, pilih salah satu tata letak bukti dukung:
+Khusus BAPP Termin 2 dan BAST, pilih salah satu tata letak bukti dukung:
 
-- **Grid adaptif:** maksimal lima gambar, dengan ukuran menyesuaikan halaman.
-- **Halaman khusus:** seluruh gambar ditempatkan satu per halaman tanpa batas lima gambar dari mode grid.
+- **Grid adaptif:** maksimal lima gambar per halaman, dengan ukuran menyesuaikan halaman.
+- **Halaman khusus:** seluruh gambar ditempatkan satu per halaman.
+
+Setiap halaman bukti berformat PDF selalu ditempatkan pada halaman khusus,
+terlepas dari pilihan tata letak. Gambar setelah PDF kembali mengikuti pilihan
+grid atau halaman khusus pengguna.
 
 ### 5. Simpan Hasil
 
@@ -131,7 +135,9 @@ Alur BAPP, BAST, dan Bukti Terima dapat menggunakan tautan Google Drive untuk me
 - Atur akses file menjadi **Anyone with the link / Siapa saja yang memiliki tautan**.
 - Jika file berasal dari folder unggahan Google Forms, pastikan folder tersebut juga dapat diakses melalui tautan.
 - Gunakan tautan file Google Drive yang valid; beberapa tautan dapat dipisahkan dengan koma pada kolom yang mendukung banyak gambar.
-- Format JPEG, PNG, HEIC, dan HEIF didukung. Orientasi EXIF diterapkan otomatis.
+- Format JPEG, PNG, HEIC, HEIF, dan PDF didukung pada BAPP Termin 2 dan BAST.
+  Setiap halaman PDF dirender dan disisipkan sebagai halaman khusus. Orientasi
+  EXIF pada gambar diterapkan otomatis.
 - Respons HTML, file kosong, dan gambar rusak/tidak dikenal dilaporkan sebagai peringatan tanpa harus menggagalkan seluruh batch.
 
 Perhatikan bahwa penggunaan tautan yang dapat diakses siapa saja memiliki implikasi privasi. Batasi isi gambar pada data yang memang diperlukan, dan cabut akses tautan setelah proses selesai bila kebijakan kerja mengharuskannya.
@@ -197,6 +203,7 @@ Sertakan versi aplikasi, jenis dokumen, langkah untuk mereproduksi masalah, dan 
 - python-docx
 - Pillow dan pillow-heif
 - pypdf
+- PyMuPDF
 - requests dan certifi
 - LibreOffice sebagai runtime native untuk konversi PDF
 
