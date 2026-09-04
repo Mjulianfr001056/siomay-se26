@@ -217,6 +217,29 @@ def main(page: ft.Page):
                     ft.Text(f"{update.display_version} tersedia untuk kanal {RELEASE_CHANNEL}.",
                             weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_900),
                     ft.Text(f"Versi terpasang: {DISPLAY_VERSION}", size=13),
+                    ft.Divider(),
+                    ft.Text("Yang baru", weight=ft.FontWeight.BOLD),
+                    ft.Container(
+                        content=ft.Column(
+                            [
+                                ft.Markdown(update.changelog, selectable=True)
+                                if update.changelog
+                                else ft.Text(
+                                    "Catatan perubahan tidak dapat dimuat. Anda tetap dapat "
+                                    "melihatnya di halaman rilis resmi.",
+                                    size=13,
+                                    italic=True,
+                                    color=ft.Colors.GREY_700,
+                                )
+                            ],
+                            scroll=ft.ScrollMode.AUTO,
+                        ),
+                        width=600,
+                        height=260,
+                        padding=12,
+                        border=ft.Border.all(1, ft.Colors.GREY_300),
+                        border_radius=8,
+                    ),
                     ft.Text(
                         "Untuk keamanan, unduh pembaruan hanya dari halaman "
                         "GitHub Releases resmi.",
@@ -1246,7 +1269,7 @@ def main(page: ft.Page):
                     color=ft.Colors.BLUE_900,
                 ),
                 ft.Text(
-                    "Pilih cara gambar ditempatkan. Bukti dukung berupa .PDF akan PDF selalu "
+                    "Pilih cara gambar ditempatkan. Bukti dukung berupa .PDF akan selalu "
                     "ditempatkan pada halaman khusus.",
                     size=12,
                     color=ft.Colors.GREY_700,
