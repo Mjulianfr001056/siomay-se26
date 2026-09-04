@@ -144,6 +144,7 @@ def main(page: ft.Page):
         "saved_path": None,          # hasil step 5
         "saved": False,              # True setelah output berhasil disimpan
         "evidence_image_layout": "grid",  # grid | dedicated_pages
+        "evidence_image_orientation": "automatic",  # automatic | portrait | landscape
         "busy": False,
     }
 
@@ -1267,6 +1268,53 @@ def main(page: ft.Page):
         border_radius=8,
         padding=12,
     )
+    evidence_orientation_group = ft.RadioGroup(
+        value="automatic",
+        disabled=True,
+        content=ft.Column(
+            [
+                ft.Radio(value="automatic", label="Otomatis"),
+                ft.Radio(value="portrait", label="Potret"),
+                ft.Radio(value="landscape", label="Lanskap"),
+            ],
+            spacing=2,
+        ),
+        on_change=lambda e: state.update(
+            {"evidence_image_orientation": e.control.value}
+        ),
+    )
+    evidence_orientation_option = ft.Column(
+        [
+            ft.Divider(height=12, color=ft.Colors.BLUE_200),
+            ft.Text(
+                "Orientasi Gambar pada Halaman Khusus",
+                size=13,
+                weight=ft.FontWeight.BOLD,
+                color=ft.Colors.BLUE_900,
+            ),
+            evidence_orientation_group,
+            ft.Text(
+                "Petunjuk: Pilih Otomatis agar SIOMAY menentukan orientasi "
+                "berdasarkan perbandingan lebar dan tinggi gambar. "
+                "Pilih Potret untuk mempertahankan tampilan lama. "
+                "Pilih Lanskap untuk memutar setiap gambar 90° searah jarum jam "
+                "dan memperbesarnya.",
+                size=12,
+                color=ft.Colors.GREY_700,
+                italic=True,
+            ),
+        ],
+        spacing=4,
+        visible=False,
+    )
+
+    def on_evidence_layout_change(e):
+        state["evidence_image_layout"] = e.control.value
+        show_orientation = e.control.value == "dedicated_pages"
+        evidence_orientation_option.visible = show_orientation
+        evidence_orientation_group.disabled = not show_orientation or state["busy"]
+        page.update()
+
     evidence_layout_group = ft.RadioGroup(
         value="grid",
         content=ft.Column(
@@ -1282,9 +1330,7 @@ def main(page: ft.Page):
             ],
             spacing=2,
         ),
-        on_change=lambda e: state.update(
-            {"evidence_image_layout": e.control.value}
-        ),
+        on_change=on_evidence_layout_change,
     )
     evidence_layout_option = ft.Container(
         visible=False,
@@ -1303,6 +1349,7 @@ def main(page: ft.Page):
                     color=ft.Colors.GREY_700,
                 ),
                 evidence_layout_group,
+                evidence_orientation_option,
             ],
             spacing=4,
         ),
@@ -1323,6 +1370,13 @@ def main(page: ft.Page):
         )
         evidence_layout_option.visible = doc.group in ("BAPP Termin 2", "BAST")
         evidence_layout_group.value = state["evidence_image_layout"]
+        evidence_orientation_group.value = state["evidence_image_orientation"]
+        evidence_orientation_option.visible = (
+            state["evidence_image_layout"] == "dedicated_pages"
+        )
+        evidence_orientation_group.disabled = (
+            state["evidence_image_layout"] != "dedicated_pages" or state["busy"]
+        )
         if doc.group == "Lampiran SPK" and doc.kind:
             try:
                 ctx = lampiran_spk.prepare_context(state["dfs"])
@@ -1404,6 +1458,7 @@ def main(page: ft.Page):
 
         btn_generate.disabled = True
         evidence_layout_group.disabled = True
+        evidence_orientation_group.disabled = True
         btn_generate.text = "Sedang Memproses Dokumen… (00:00)"
         btn_generate.icon = ft.Icons.HOURGLASS_TOP_ROUNDED
         gen_progress.visible = True
@@ -1425,6 +1480,9 @@ def main(page: ft.Page):
         state["busy"] = False
         btn_generate.disabled = False
         evidence_layout_group.disabled = False
+        evidence_orientation_group.disabled = (
+            state["evidence_image_layout"] != "dedicated_pages"
+        )
         btn_generate.text = "Mulai Generate Dokumen"
         btn_generate.icon = ft.Icons.PLAY_ARROW_ROUNDED
 
@@ -1598,13 +1656,19 @@ def main(page: ft.Page):
         log(f"Template : {os.path.basename(state['template_path'])}", "INFO")
         log(f"Data     : {os.path.basename(state['file_path'])}", "INFO")
         image_layout = state["evidence_image_layout"]
+        image_orientation = state["evidence_image_orientation"]
         layout_label = "Grid adaptif" if image_layout == "grid" else "Halaman khusus"
+        orientation_label = {
+            "portrait": "Potret", "landscape": "Lanskap", "automatic": "Otomatis",
+        }[image_orientation]
         log(f"Gambar   : {layout_label}", "INFO")
+        log(f"Orientasi: {orientation_label}", "INFO")
 
         try:
             for ev in bapp_pml_t2.iter_generate(
                     state["dfs"], state["template_path"], out_dir,
-                    image_layout=image_layout):
+                    image_layout=image_layout,
+                    image_orientation=image_orientation):
                 t = ev.get("t")
                 if t == "log":
                     log(ev["msg"], ev.get("level", "INFO"))
@@ -1646,13 +1710,19 @@ def main(page: ft.Page):
         log(f"Template : {os.path.basename(state['template_path'])}", "INFO")
         log(f"Data     : {os.path.basename(state['file_path'])}", "INFO")
         image_layout = state["evidence_image_layout"]
+        image_orientation = state["evidence_image_orientation"]
         layout_label = "Grid adaptif" if image_layout == "grid" else "Halaman khusus"
+        orientation_label = {
+            "portrait": "Potret", "landscape": "Lanskap", "automatic": "Otomatis",
+        }[image_orientation]
         log(f"Gambar   : {layout_label}", "INFO")
+        log(f"Orientasi: {orientation_label}", "INFO")
 
         try:
             for ev in bapp_ppl_t2.iter_generate(
                     state["dfs"], state["template_path"], out_dir,
-                    image_layout=image_layout):
+                    image_layout=image_layout,
+                    image_orientation=image_orientation):
                 t = ev.get("t")
                 if t == "log":
                     log(ev["msg"], ev.get("level", "INFO"))
@@ -1787,13 +1857,19 @@ def main(page: ft.Page):
         log(f"Template : {os.path.basename(state['template_path'])}", "INFO")
         log(f"Data     : {os.path.basename(state['file_path'])}", "INFO")
         image_layout = state["evidence_image_layout"]
+        image_orientation = state["evidence_image_orientation"]
         layout_label = "Grid adaptif" if image_layout == "grid" else "Halaman khusus"
+        orientation_label = {
+            "portrait": "Potret", "landscape": "Lanskap", "automatic": "Otomatis",
+        }[image_orientation]
         log(f"Bukti    : {layout_label}", "INFO")
+        log(f"Orientasi: {orientation_label}", "INFO")
 
         try:
             for ev in bast.iter_generate(
                     kind, state["dfs"], state["template_path"], out_dir,
-                    image_layout=image_layout):
+                    image_layout=image_layout,
+                    image_orientation=image_orientation):
                 t = ev.get("t")
                 if t == "log":
                     log(ev["msg"], ev.get("level", "INFO"))
@@ -2124,7 +2200,8 @@ def main(page: ft.Page):
             "generated_files": [], "generation_done": False,
             "gen_duration": None, "conv_duration": None,
             "saved_path": None, "saved": False,
-            "evidence_image_layout": "grid", "busy": False,
+            "evidence_image_layout": "grid",
+            "evidence_image_orientation": "automatic", "busy": False,
         })
         restyle_doc_cards()
         step1_summary.value = "Belum ada dokumen dipilih."
@@ -2142,6 +2219,9 @@ def main(page: ft.Page):
         bapp_t1_link_warning.visible = False
         evidence_layout_option.visible = False
         evidence_layout_group.value = "grid"
+        evidence_orientation_group.value = "automatic"
+        evidence_orientation_group.disabled = True
+        evidence_orientation_option.visible = False
         gen_summary_text.value = "Lengkapi langkah sebelumnya."
         save_result_area.visible = False
         save_duration_box.visible = False

@@ -26,7 +26,12 @@ from utils.images import (
     HAS_PIL,
     download_drive_evidence as _download_drive_evidence,
 )
-from utils.evidence import insert_evidence as _insert_evidence
+from utils.evidence import (
+    IMAGE_ORIENTATION_AUTOMATIC,
+    IMAGE_ORIENTATION_LANDSCAPE,
+    IMAGE_ORIENTATION_PORTRAIT,
+    insert_evidence as _insert_evidence,
+)
 
 
 # -- Skema input Excel ------------------------------------------------
@@ -271,7 +276,8 @@ def _extract_file_id(link: str):
 
 def insert_gdrive_images(doc: Document, links_str: str,
                          placeholder: str = None,
-                         image_layout: str = IMAGE_LAYOUT_GRID):
+                         image_layout: str = IMAGE_LAYOUT_GRID,
+                         image_orientation: str = IMAGE_ORIENTATION_PORTRAIT):
     """Sisipkan gambar/PDF; tiap halaman PDF selalu memakai halaman khusus."""
     return _insert_evidence(
         doc,
@@ -281,6 +287,7 @@ def insert_gdrive_images(doc: Document, links_str: str,
         _extract_file_id,
         replace_text_preserving_runs,
         _download_drive_evidence,
+        image_orientation,
     )
 
 
@@ -290,7 +297,8 @@ def _slug(name: str) -> str:
 
 
 def iter_generate(dfs: dict, template_path: str, out_dir: str,
-                  image_layout: str = IMAGE_LAYOUT_GRID):
+                  image_layout: str = IMAGE_LAYOUT_GRID,
+                  image_orientation: str = IMAGE_ORIENTATION_PORTRAIT):
     """
     Generator populasi dokumen BAPP T2 PPL.
 
@@ -349,7 +357,8 @@ def iter_generate(dfs: dict, template_path: str, out_dir: str,
         replace_text_preserving_runs(doc, replacements)
 
         n_img, img_warnings = insert_gdrive_images(
-            doc, link_gd, image_layout=image_layout
+            doc, link_gd, image_layout=image_layout,
+            image_orientation=image_orientation,
         )
         if n_img:
             yield {"t": "log", "level": "INFO",

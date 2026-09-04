@@ -1,20 +1,33 @@
 """Shared DOCX layout engine for image and PDF evidence from Google Drive."""
 
+import io
+
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
+from PIL import Image
 
 IMAGE_LAYOUT_GRID = "grid"
 IMAGE_LAYOUT_DEDICATED_PAGES = "dedicated_pages"
 IMAGE_LAYOUTS = {IMAGE_LAYOUT_GRID, IMAGE_LAYOUT_DEDICATED_PAGES}
+IMAGE_ORIENTATION_PORTRAIT = "portrait"
+IMAGE_ORIENTATION_LANDSCAPE = "landscape"
+IMAGE_ORIENTATION_AUTOMATIC = "automatic"
+IMAGE_ORIENTATIONS = {
+    IMAGE_ORIENTATION_PORTRAIT,
+    IMAGE_ORIENTATION_LANDSCAPE,
+    IMAGE_ORIENTATION_AUTOMATIC,
+}
 GRID_LAYOUTS = {1: [1], 2: [2], 3: [2, 1], 4: [2, 2], 5: [3, 2]}
 GRID_MAX_WIDTH_IN = 9.2
 GRID_MAX_HEIGHT_IN = 4.6
 GRID_GAP_IN = 0.12
 DEDICATED_MAX_WIDTH_IN = 7.5
 DEDICATED_MAX_HEIGHT_IN = 4.0
+DEDICATED_TITLE_SPACE_IN = 0.75
+DEDICATED_FIRST_UNIT_EXTRA_SPACE_IN = 0.25
 EMU_PER_INCH = 914400
 
 
@@ -33,17 +46,67 @@ def _page_break(doc, anchor):
     return paragraph._p
 
 
-def _insert_dedicated(doc, anchor, item, number, total):
+def _rotate_clockwise_png(stream):
+    """Return a new PNG stream and size after a pixel-level clockwise rotation."""
+    stream.seek(0)
+    with Image.open(stream) as image:
+        rotated = image.rotate(-90, expand=True)
+        output = io.BytesIO()
+        rotated.save(output, format="PNG")
+        size = rotated.size
+        rotated.close()
+    output.seek(0)
+    return output, size
+
+
+def _prepare_dedicated_item(item, image_orientation):
     kind, stream, size = item
-    section = doc.sections[-1]
+    rotate = (
+        image_orientation == IMAGE_ORIENTATION_LANDSCAPE
+        or (
+            image_orientation == IMAGE_ORIENTATION_AUTOMATIC
+            and size[1] > size[0]
+        )
+    )
+    if not rotate:
+        return kind, stream, size
+    rotated_stream, rotated_size = _rotate_clockwise_png(stream)
+    return kind, rotated_stream, rotated_size
+
+
+def _dedicated_box(section, image_orientation, is_first_unit):
     content_w = (
         section.page_width - section.left_margin - section.right_margin
     ) / EMU_PER_INCH
     content_h = (
         section.page_height - section.top_margin - section.bottom_margin
     ) / EMU_PER_INCH
-    box_w = max(min(content_w, DEDICATED_MAX_WIDTH_IN), 1.0)
-    box_h = max(min(content_h - 0.75, DEDICATED_MAX_HEIGHT_IN), 1.0)
+    if image_orientation == IMAGE_ORIENTATION_PORTRAIT:
+        return (
+            max(min(content_w, DEDICATED_MAX_WIDTH_IN), 1.0),
+            max(
+                min(content_h - DEDICATED_TITLE_SPACE_IN,
+                    DEDICATED_MAX_HEIGHT_IN),
+                1.0,
+            ),
+        )
+
+    first_unit_space = (
+        DEDICATED_FIRST_UNIT_EXTRA_SPACE_IN if is_first_unit else 0.0
+    )
+    return (
+        max(content_w, 1.0),
+        max(content_h - DEDICATED_TITLE_SPACE_IN - first_unit_space, 1.0),
+    )
+
+
+def _insert_dedicated(doc, anchor, item, number, total, image_orientation,
+                      is_first_unit=False):
+    kind, stream, size = _prepare_dedicated_item(item, image_orientation)
+    section = doc.sections[-1]
+    box_w, box_h = _dedicated_box(
+        section, image_orientation, is_first_unit
+    )
 
     title = doc.add_paragraph()
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -120,10 +183,15 @@ def _insert_grid(doc, anchor, images):
 
 
 def insert_evidence(doc, links_str, placeholder, image_layout, extract_file_id,
-                    replace_text, evidence_downloader):
+                    replace_text, evidence_downloader,
+                    image_orientation=IMAGE_ORIENTATION_PORTRAIT):
     """Insert ordered images/PDF pages; PDF pages are always dedicated pages."""
     if image_layout not in IMAGE_LAYOUTS:
         raise ValueError(f"Mode tata letak gambar tidak dikenal: {image_layout}")
+    if image_orientation not in IMAGE_ORIENTATIONS:
+        raise ValueError(
+            "Orientasi gambar tidak dikenal: " + str(image_orientation)
+        )
     target = next((p for p in doc.paragraphs if placeholder in p.text), None)
     if target is None:
         return 0, ["Template tidak memiliki placeholder " + placeholder]
@@ -186,6 +254,7 @@ def insert_evidence(doc, links_str, placeholder, image_layout, extract_file_id,
         else:
             evidence_number += 1
             anchor = _insert_dedicated(
-                doc, anchor, unit_items[0], evidence_number, total
+                doc, anchor, unit_items[0], evidence_number, total,
+                image_orientation, is_first_unit=(unit_index == 0),
             )
     return len(items), warnings

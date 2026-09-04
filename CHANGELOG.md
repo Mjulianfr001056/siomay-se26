@@ -4,6 +4,20 @@ Semua perubahan penting pada proyek SIOMAY didokumentasikan di berkas ini. Forma
 
 ---
 
+## [v2026.1.7] - 2026-09-04
+
+### Orientasi Bukti Dukung
+- **Pilihan Potret, Lanskap, dan Otomatis**: Menambahkan pengaturan orientasi untuk gambar dan halaman PDF yang ditempatkan pada halaman khusus di BAPP Termin 2 dan BAST PPL/PML.
+- **Rotasi Piksel Searah Jarum Jam**: Mode Lanskap memutar setiap bukti 90° searah jarum jam, sedangkan mode Otomatis hanya memutar gambar yang lebih tinggi daripada lebarnya.
+- **Maksimalisasi Area Halaman**: Mode Lanskap dan Otomatis menggunakan ukuran halaman serta margin dokumen aktual dengan tetap menyediakan ruang bagi judul bukti dan unit bukti pertama.
+- **Pilihan Bawaan Otomatis**: Mode Otomatis menjadi pilihan bawaan pada antarmuka, sedangkan mode Potret tetap mempertahankan batas ukuran lama `7,5 × 4,0` inci dan kompatibilitas API lama.
+
+### Antarmuka dan Pengujian
+- Menambahkan petunjuk orientasi berbahasa Indonesia di Langkah 4, sinkronisasi/reset state, penerusan opsi ke seluruh generator terkait, dan informasi orientasi pada log generasi.
+- Menambahkan pengujian regresi untuk arah rotasi piksel, aturan orientasi otomatis, fitting area halaman, validasi nilai, kompatibilitas API lama, serta integrasi BAST.
+
+---
+
 ## [v2026.1.6] - 2026-09-04
 
 ### Bukti Dukung BAST dan BAPP Termin 2

@@ -32,6 +32,7 @@ from docx.oxml.ns import qn
 # Reuse evidence layout and placeholder helpers from BAPP T2 PPL
 from src.bapp_ppl_t2 import (
     IMAGE_LAYOUT_GRID,
+    IMAGE_ORIENTATION_PORTRAIT,
     replace_text_preserving_runs,
     insert_gdrive_images,
     _slug,
@@ -387,7 +388,8 @@ def _build_wilayah_data_pml(nik_pml, df_tugas, df_mitra, kec_map):
 # =====================================================================
 def _generate_one_doc(row, kind, df_tugas, df_mitra, kec_map,
                       template_path, out_dir, idx, total,
-                      image_layout=IMAGE_LAYOUT_GRID):
+                      image_layout=IMAGE_LAYOUT_GRID,
+                      image_orientation=IMAGE_ORIENTATION_PORTRAIT):
     """Generate satu dokumen BAST (PPL atau PML). Yield event dicts."""
     nik = _norm(row.get("nik", ""))
     nama = _norm(row.get("nama_mitra", ""))
@@ -441,6 +443,7 @@ def _generate_one_doc(row, kind, df_tugas, df_mitra, kec_map,
     n_img, img_warnings = insert_gdrive_images(
         doc, bukti_link, placeholder=BUKTI_PLACEHOLDER,
         image_layout=image_layout,
+        image_orientation=image_orientation,
     )
     if n_img:
         yield {"t": "log", "level": "INFO",
@@ -463,7 +466,8 @@ def _generate_one_doc(row, kind, df_tugas, df_mitra, kec_map,
 #  Main generator
 # =====================================================================
 def iter_generate(kind, dfs, template_path, out_dir,
-                  image_layout=IMAGE_LAYOUT_GRID):
+                  image_layout=IMAGE_LAYOUT_GRID,
+                  image_orientation=IMAGE_ORIENTATION_PORTRAIT):
     """Generator populasi dokumen BAST (PPL atau PML).
 
     Yields event dicts:
@@ -522,6 +526,7 @@ def iter_generate(kind, dfs, template_path, out_dir,
         for ev in _generate_one_doc(
             row, kind, df_tugas, df_mitra, kec_map,
             template_path, out_dir, idx, total, image_layout,
+            image_orientation,
         ):
             if ev["t"] == "file":
                 generated.append(ev["path"])

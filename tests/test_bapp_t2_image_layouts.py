@@ -1,6 +1,7 @@
 """Tests for BAPP Termin 2 evidence-image layout modes."""
 
 import io
+import inspect
 import unittest
 from unittest.mock import patch
 
@@ -8,6 +9,7 @@ from docx import Document
 from PIL import Image
 
 from src import bapp_pml_t2, bapp_ppl_t2
+from utils import evidence
 
 
 MODULES = (bapp_ppl_t2, bapp_pml_t2)
@@ -37,6 +39,15 @@ def _png_item(kind="image", color=(40, 100, 180)):
     return kind, stream, (1200, 800)
 
 
+def _sized_png_item(size, kind="image", color=(40, 100, 180)):
+    image = Image.new("RGB", size, color=color)
+    stream = io.BytesIO()
+    image.save(stream, format="PNG")
+    image.close()
+    stream.seek(0)
+    return kind, stream, size
+
+
 def _document_with_placeholder(module):
     doc = Document()
     paragraph = doc.add_paragraph()
@@ -48,6 +59,131 @@ def _document_with_placeholder(module):
 
 
 class BappTermin2ImageLayoutTests(unittest.TestCase):
+    def test_bapp_generator_orientation_defaults_to_portrait(self):
+        for module in MODULES:
+            with self.subTest(module=module.__name__):
+                parameters = inspect.signature(module.iter_generate).parameters
+                self.assertEqual(
+                    parameters["image_orientation"].default,
+                    module.IMAGE_ORIENTATION_PORTRAIT,
+                )
+
+    def test_orientation_defaults_to_portrait_for_old_api_calls(self):
+        for module in MODULES:
+            with self.subTest(module=module.__name__):
+                doc, _, _ = _document_with_placeholder(module)
+                with patch.object(
+                    module, "_download_drive_evidence", side_effect=_evidence_image
+                ):
+                    module.insert_gdrive_images(
+                        doc,
+                        "https://drive.google.com/file/d/image-default/view",
+                        image_layout=module.IMAGE_LAYOUT_DEDICATED_PAGES,
+                    )
+                shape = doc.inline_shapes[0]
+                self.assertLessEqual(shape.width.inches,
+                                     module.DEDICATED_MAX_WIDTH_IN)
+                self.assertLessEqual(shape.height.inches,
+                                     module.DEDICATED_MAX_HEIGHT_IN)
+
+    def test_landscape_rotates_png_pixels_clockwise_without_mutating_source(self):
+        image = Image.new("RGB", (2, 3), color=(0, 0, 0))
+        image.putpixel((0, 0), (255, 0, 0))
+        image.putpixel((1, 2), (0, 255, 0))
+        source = io.BytesIO()
+        image.save(source, format="PNG")
+        original_bytes = source.getvalue()
+        image.close()
+
+        _, rotated_stream, rotated_size = evidence._prepare_dedicated_item(
+            ("image", source, (2, 3)), evidence.IMAGE_ORIENTATION_LANDSCAPE
+        )
+
+        self.assertEqual(rotated_size, (3, 2))
+        self.assertEqual(source.getvalue(), original_bytes)
+        self.assertIsNot(rotated_stream, source)
+        with Image.open(rotated_stream) as rotated:
+            self.assertEqual(rotated.size, (3, 2))
+            self.assertEqual(rotated.getpixel((2, 0)), (255, 0, 0))
+            self.assertEqual(rotated.getpixel((0, 1)), (0, 255, 0))
+
+    def test_landscape_always_rotates_wide_and_tall_images(self):
+        for size in ((1200, 800), (800, 1200)):
+            with self.subTest(size=size):
+                item = _sized_png_item(size)
+                _, result_stream, result_size = evidence._prepare_dedicated_item(
+                    item, evidence.IMAGE_ORIENTATION_LANDSCAPE
+                )
+                self.assertIsNot(result_stream, item[1])
+                self.assertEqual(result_size, (size[1], size[0]))
+
+    def test_automatic_rotation_rules_cover_wide_tall_and_square_images(self):
+        cases = [
+            ((1200, 800), False, (1200, 800)),
+            ((800, 1200), True, (1200, 800)),
+            ((900, 900), False, (900, 900)),
+        ]
+        for size, rotates, expected_size in cases:
+            with self.subTest(size=size):
+                item = _sized_png_item(size)
+                _, result_stream, result_size = evidence._prepare_dedicated_item(
+                    item, evidence.IMAGE_ORIENTATION_AUTOMATIC
+                )
+                self.assertEqual(result_size, expected_size)
+                self.assertEqual(result_stream is item[1], not rotates)
+
+    def test_new_orientations_use_actual_page_area_and_first_unit_reserve(self):
+        doc = Document()
+        section = doc.sections[-1]
+        content_width = (
+            section.page_width - section.left_margin - section.right_margin
+        ) / evidence.EMU_PER_INCH
+        content_height = (
+            section.page_height - section.top_margin - section.bottom_margin
+        ) / evidence.EMU_PER_INCH
+
+        later_box = evidence._dedicated_box(
+            section, evidence.IMAGE_ORIENTATION_LANDSCAPE, False
+        )
+        first_box = evidence._dedicated_box(
+            section, evidence.IMAGE_ORIENTATION_LANDSCAPE, True
+        )
+        square_width, square_height = evidence._fit_box(
+            1000, 1000, *first_box
+        )
+
+        self.assertAlmostEqual(later_box[0], content_width)
+        self.assertAlmostEqual(
+            later_box[1], content_height - evidence.DEDICATED_TITLE_SPACE_IN
+        )
+        self.assertAlmostEqual(
+            later_box[1] - first_box[1],
+            evidence.DEDICATED_FIRST_UNIT_EXTRA_SPACE_IN,
+        )
+        self.assertAlmostEqual(square_width, square_height)
+        self.assertAlmostEqual(square_width, min(first_box))
+
+    def test_landscape_inserted_shape_stays_inside_actual_page_area(self):
+        for module in MODULES:
+            with self.subTest(module=module.__name__):
+                doc, _, _ = _document_with_placeholder(module)
+                item = _sized_png_item((800, 1200))
+                with patch.object(
+                    module, "_download_drive_evidence", return_value=[item]
+                ):
+                    module.insert_gdrive_images(
+                        doc,
+                        "https://drive.google.com/file/d/image-landscape/view",
+                        image_layout=module.IMAGE_LAYOUT_DEDICATED_PAGES,
+                        image_orientation=module.IMAGE_ORIENTATION_LANDSCAPE,
+                    )
+                shape = doc.inline_shapes[0]
+                box = evidence._dedicated_box(
+                    doc.sections[-1], evidence.IMAGE_ORIENTATION_LANDSCAPE, True
+                )
+                self.assertLessEqual(shape.width.inches, box[0] + 0.001)
+                self.assertLessEqual(shape.height.inches, box[1] + 0.001)
+
     def test_bapp_sequence_number_preserves_three_digit_form(self):
         for module in MODULES:
             with self.subTest(module=module.__name__):
@@ -181,6 +317,15 @@ class BappTermin2ImageLayoutTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "tata letak gambar"):
                     module.insert_gdrive_images(
                         doc, "", image_layout="unknown-layout"
+                    )
+
+    def test_invalid_orientation_is_rejected_with_clear_error(self):
+        for module in MODULES:
+            with self.subTest(module=module.__name__):
+                doc, _, _ = _document_with_placeholder(module)
+                with self.assertRaisesRegex(ValueError, "Orientasi gambar"):
+                    module.insert_gdrive_images(
+                        doc, "", image_orientation="upside-down"
                     )
 
     def test_empty_links_still_remove_placeholder(self):
