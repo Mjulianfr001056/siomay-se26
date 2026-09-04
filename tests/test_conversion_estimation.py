@@ -1,5 +1,6 @@
 """Tests for Step 5 DOCX-to-PDF conversion estimates."""
 
+import math
 import unittest
 
 from utils import (
@@ -30,27 +31,11 @@ class ConversionEstimationTests(unittest.TestCase):
         })
 
     def test_each_benchmark_receives_twenty_percent_buffer_and_rounds_up(self):
-        expected = {
-            "lampiran_spk_ppl": 29,
-            "lampiran_spk_pml": 10,
-            "bapp_ppl_t1": 348,
-            "bapp_ppl_t2": 348,
-            "bapp_pml_t1": 57,
-            "bapp_pml_t2": 57,
-            "bast_ppl": 512,
-            "bast_pml": 74,
-            "bukti_terima": 12,
-            "spp_ppl": 40,
-            "spp_t2_ppl": 40,
-            "spp_pml": 15,
-            "spp_t2_pml": 15,
-        }
-        for document_id, estimate in expected.items():
+        for document_id, (prior_workload, prior_duration) in CONVERSION_BENCHMARKS.items():
             with self.subTest(document_id=document_id):
-                prior_workload, _ = CONVERSION_BENCHMARKS[document_id]
                 self.assertEqual(
                     estimate_conversion_seconds(document_id, prior_workload),
-                    estimate,
+                    math.ceil(prior_duration * 1.20),
                 )
 
     def test_rounding_is_always_up_to_a_whole_second(self):
