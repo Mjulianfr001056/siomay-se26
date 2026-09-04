@@ -57,6 +57,7 @@ from src.release import (
 )
 from src.updates import check_for_update
 from utils import (
+    DebounceGate,
     MERGE_AVAILABLE,
     PDF_AVAILABLE,
     close_window,
@@ -2449,6 +2450,7 @@ def main(page: ft.Page):
             padding=ft.Padding.symmetric(horizontal=22, vertical=12),
         ),
     )
+    next_click_gate = DebounceGate(0.5)
 
     async def quit_app(e=None):
         """Keluar dari aplikasi (tutup jendela; fallback paksa destroy)."""
@@ -2518,6 +2520,8 @@ def main(page: ft.Page):
         step_hint.value = f"Langkah {st + 1} dari 5 — {STEP_DEFS[st]['label']}"
 
     async def on_next(e):
+        if not next_click_gate.accept():
+            return
         st = state["step"]
         doc = current_doc()
         # Jika dari Step 1 ke Step 2 dan dokumen tidak perlu template,

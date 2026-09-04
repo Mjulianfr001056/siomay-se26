@@ -11,14 +11,14 @@ CONVERSION_BENCHMARKS: dict[str, tuple[int, int]] = {
     "bapp_ppl_t1": (299, 290),
     "bapp_ppl_t2": (6, 26),
     "bapp_pml_t1": (47, 47),
-    "bapp_pml_t2": (2, 12),
-    "bast_ppl": (6, 15),
+    "bapp_pml_t2": (23, 27),
+    "bast_ppl": (8, 142),
     "bast_pml": (2, 10),
     "bukti_terima": (8, 10),
     "spp_ppl": (6, 33),
     "spp_t2_ppl": (6, 33),
     "spp_pml": (2, 12),
-    "spp_t2_pml": (2, 12),
+    "spp_t2_pml": (23, 35),
 }
 
 

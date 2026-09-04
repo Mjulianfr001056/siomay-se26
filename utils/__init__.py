@@ -22,6 +22,7 @@ from utils.conversion_estimation import (
     estimate_conversion_seconds,
     format_estimated_duration,
 )
+from utils.debounce import DebounceGate
 from utils.pdf_tools import (
     MERGE_AVAILABLE,
     PDF_AVAILABLE,
@@ -42,6 +43,7 @@ from utils.ui import (
 
 __all__ = [
     "CONVERSION_BENCHMARKS",
+    "DebounceGate",
     "MERGE_AVAILABLE",
     "PDF_AVAILABLE",
     "LOG_STYLES",
