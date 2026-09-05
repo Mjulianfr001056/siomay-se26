@@ -1,15 +1,19 @@
 """Tests for validation of edited DOCX templates in Step 2."""
 
 import os
+import io
 import tempfile
 import unittest
+from unittest.mock import Mock
 
 from docx import Document
+from PIL import Image
 
 from src.document_generator import (
     extend_input_template,
     extract_template_placeholders,
     fill_row,
+    insert_custom_url_images,
     row_placeholder_replacements,
     validate_custom_columns,
     validate_template_placeholders,
@@ -164,6 +168,98 @@ class TemplatePlaceholderValidationTests(unittest.TestCase):
             row_placeholder_replacements(row),
             {"{{code}}": "001", "{{blank}}": ""},
         )
+
+    def test_custom_image_urls_use_evidence_layout_from_all_docx_stories(self):
+        document = Document()
+        paragraph = document.add_paragraph("Before ")
+        paragraph.add_run("{{photo_")
+        paragraph.add_run("custom}} after {{photo_custom}}")
+        nested = document.add_table(rows=1, cols=1).cell(0, 0)
+        nested.add_table(rows=1, cols=1).cell(0, 0).text = "{{photo_custom}}"
+        document.sections[0].header.paragraphs[0].text = "{{photo_custom}}"
+
+        image = Image.new("RGB", (120, 80), color="navy")
+        stream = io.BytesIO()
+        image.save(stream, format="PNG")
+        image.close()
+        stream.seek(0)
+        downloaded = Image.open(stream)
+        downloader = Mock(return_value=(stream, downloaded))
+
+        consumed = insert_custom_url_images(
+            document,
+            pd.Series({"photo_custom": "https://example.test/photo"}),
+            downloader=downloader,
+        )
+
+        self.assertEqual(consumed, {"{{photo_custom}}"})
+        self.assertEqual(downloader.call_count, 1)
+        drawing_count = len(document.element.xpath(".//w:drawing"))
+        drawing_count += len(
+            document.sections[0].header._element.xpath(".//w:drawing")
+        )
+        self.assertEqual(drawing_count, 4)
+        self.assertNotIn("{{photo_custom}}", paragraph.text)
+        self.assertEqual(paragraph.text, "Before  after ")
+
+    def test_custom_image_uses_selected_dedicated_orientation(self):
+        document = Document()
+        placeholder = document.add_paragraph("{{photo_custom}}")
+        image = Image.new("RGB", (80, 120), color="navy")
+        stream = io.BytesIO()
+        image.save(stream, format="PNG")
+        image.close()
+        stream.seek(0)
+
+        consumed = insert_custom_url_images(
+            document,
+            pd.Series({"photo_custom": "https://example.test/photo"}),
+            image_layout="dedicated_pages",
+            image_orientation="landscape",
+            downloader=Mock(return_value=(stream, Image.open(stream))),
+        )
+
+        self.assertEqual(consumed, {"{{photo_custom}}"})
+        self.assertEqual(placeholder.text, "")
+        self.assertEqual(len(document.inline_shapes), 1)
+        shape = document.inline_shapes[0]
+        self.assertGreater(shape.width, shape.height)
+        self.assertFalse(any(
+            p.text.startswith("BUKTI DUKUNG") for p in document.paragraphs
+        ))
+
+    def test_custom_non_image_or_failed_url_is_left_for_text_fallback(self):
+        for side_effect in (RuntimeError("not an image"), ValueError("download failed")):
+            with self.subTest(error=type(side_effect).__name__):
+                document = Document()
+                document.add_paragraph("Source: {{reference_custom}}")
+                url = "https://example.test/document.pdf"
+                replacements = row_placeholder_replacements(
+                    pd.Series({"reference_custom": url})
+                )
+
+                consumed = insert_custom_url_images(
+                    document,
+                    pd.Series({"reference_custom": url}),
+                    downloader=Mock(side_effect=side_effect),
+                )
+                from src.spp import replace_text_preserving_runs
+                replace_text_preserving_runs(document, replacements)
+
+                self.assertEqual(consumed, set())
+                self.assertEqual(document.paragraphs[0].text, "Source: " + url)
+                self.assertEqual(len(document.inline_shapes), 0)
+
+    def test_custom_plain_text_does_not_trigger_download(self):
+        document = Document()
+        document.add_paragraph("{{note_custom}}")
+        downloader = Mock()
+        row = pd.Series({"note_custom": "ordinary text"})
+
+        consumed = insert_custom_url_images(document, row, downloader=downloader)
+
+        self.assertEqual(consumed, set())
+        downloader.assert_not_called()
 
     def test_extends_copy_with_text_format_without_modifying_source(self):
         with tempfile.TemporaryDirectory() as directory:

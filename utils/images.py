@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import io
+import re
 import time
+from urllib.parse import urlparse
 
 import requests
 
@@ -36,6 +38,22 @@ except (ImportError, OSError) as exc:  # OSError: codec native gagal dimuat
 
 _DRIVE_DOWNLOAD_URL = "https://drive.google.com/uc"
 _DRIVE_DIRECT_URL = "https://drive.usercontent.google.com/download"
+MAX_WEB_IMAGE_BYTES = 25 * 1024 * 1024
+
+
+def extract_drive_file_id(link: str):
+    """Extract a file ID from the common public Google Drive URL formats."""
+    value = str(link or "").strip()
+    patterns = (
+        r"/file/d/([^/?#]+)",
+        r"[?&]id=([^&#]+)",
+        r"/d/([^/?#]+)",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, value)
+        if match:
+            return match.group(1)
+    return None
 
 
 def _looks_like_html(raw_bytes: bytes, content_type: str = "") -> bool:
@@ -193,6 +211,86 @@ def download_drive_image(
         file_id, max_retries, retry_delay, timeout
     )
     return image_bytes_to_png(raw_bytes, content_type)
+
+
+def download_url_image(url: str, *, timeout: float = 15,
+                       max_bytes: int = MAX_WEB_IMAGE_BYTES):
+    """Download an HTTP(S) URL and return a validated, normalized PNG image.
+
+    Google Drive share URLs use the existing confirmation-aware downloader.
+    Other URLs are streamed with a size limit. The returned bytes are always
+    decoded by Pillow, so misleading file extensions or Content-Type headers
+    cannot cause non-image content to be inserted into a DOCX.
+    """
+    value = str(url or "").strip()
+    parsed = urlparse(value)
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("Nilai bukan tautan HTTP(S) yang valid.")
+
+    hostname = (parsed.hostname or "").lower()
+    if hostname == "drive.google.com" or hostname.endswith(".drive.google.com"):
+        file_id = extract_drive_file_id(value)
+        if not file_id:
+            raise RuntimeError("Tautan Google Drive tidak memiliki file ID.")
+        return download_drive_image(file_id, timeout=timeout)
+
+    raw_bytes, content_type = _download_url_bytes(value, timeout, max_bytes)
+    return image_bytes_to_png(raw_bytes, content_type)
+
+
+def _download_url_bytes(url: str, timeout: float, max_bytes: int):
+    """Download a non-Drive web resource with a strict response-size limit."""
+    response = requests.get(url, stream=True, timeout=timeout)
+    try:
+        response.raise_for_status()
+        content_length = response.headers.get("Content-Length")
+        if content_length and int(content_length) > max_bytes:
+            raise RuntimeError(
+                f"Ukuran gambar melebihi batas {max_bytes // (1024 * 1024)} MB."
+            )
+        chunks = []
+        total = 0
+        for chunk in response.iter_content(chunk_size=64 * 1024):
+            if not chunk:
+                continue
+            total += len(chunk)
+            if total > max_bytes:
+                raise RuntimeError(
+                    f"Ukuran gambar melebihi batas {max_bytes // (1024 * 1024)} MB."
+                )
+            chunks.append(chunk)
+        return b"".join(chunks), response.headers.get("Content-Type", "")
+    finally:
+        response.close()
+
+
+def download_url_evidence(url: str, *, timeout: float = 15,
+                          max_bytes: int = MAX_WEB_IMAGE_BYTES):
+    """Download an HTTP(S) image/PDF as evidence layout items."""
+    value = str(url or "").strip()
+    parsed = urlparse(value)
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("Nilai bukan tautan HTTP(S) yang valid.")
+
+    file_id = extract_drive_file_id(value)
+    if file_id and (parsed.hostname or "").lower().endswith("drive.google.com"):
+        return download_drive_evidence(file_id, timeout=timeout)
+
+    raw_bytes, content_type = _download_url_bytes(value, timeout, max_bytes)
+    is_pdf = (
+        raw_bytes.lstrip().startswith(b"%PDF-")
+        or "application/pdf" in content_type.lower()
+    )
+    if is_pdf:
+        return [("pdf_page", stream, size)
+                for stream, size in pdf_bytes_to_png_pages(raw_bytes)]
+
+    stream, image = image_bytes_to_png(raw_bytes, content_type)
+    try:
+        size = image.size
+    finally:
+        image.close()
+    return [("image", stream, size)]
 
 
 def download_drive_evidence(

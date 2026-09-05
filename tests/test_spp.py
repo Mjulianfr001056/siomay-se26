@@ -1,11 +1,14 @@
 """Regression tests for renamed SPP Termin I number input and placeholder."""
 import os
 import tempfile
+import io
 import unittest
 import zipfile
+from unittest.mock import patch
 
 import pandas as pd
 from docx import Document
+from PIL import Image
 
 from src import spp
 from src.spp_t2 import _template_fields
@@ -107,6 +110,48 @@ class SppTermin1InputNameTests(unittest.TestCase):
             output = Document(output_path)
 
         self.assertEqual(output.paragraphs[0].text, "001||NAMA RESMI")
+
+    def test_custom_image_url_is_inserted_by_generator(self):
+        with tempfile.TemporaryDirectory() as directory:
+            template_path = os.path.join(directory, "template.docx")
+            document = Document()
+            document.add_paragraph("Photo: {{photo_custom}}")
+            document.save(template_path)
+            dfs = {
+                spp.SHEET_DATA_MITRA: pd.DataFrame([{
+                    "nik": "001", "nama_lengkap": "PETUGAS", "jabatan": "PPL",
+                    "photo_custom": "https://example.test/photo",
+                }]),
+                spp.SHEET_NO_SPK: pd.DataFrame([{
+                    "nik": "001", "no_spk": "SPK", "no_urut_spp_t1": "1",
+                }]),
+                spp.SHEET_ALOKASI: pd.DataFrame([{
+                    "nik_ppl": "001", "nik_pml": "002",
+                    "target": "1", "capaian": "1", "persentase": "100",
+                }]),
+            }
+            image = Image.new("RGB", (100, 60), color="green")
+            stream = io.BytesIO()
+            image.save(stream, format="PNG")
+            image.close()
+            stream.seek(0)
+
+            with patch(
+                "utils.images.download_url_evidence",
+                return_value=[("image", stream, (100, 60))],
+            ):
+                events = list(spp.iter_generate(
+                    "ppl", dfs, template_path, directory
+                ))
+            output_path = next(
+                event["path"] for event in events if event["t"] == "file"
+            )
+            output = Document(output_path)
+            output_xml = _document_xml_text(output_path)
+
+        self.assertEqual(len(output.inline_shapes), 1)
+        self.assertEqual(output.paragraphs[0].text, "Photo: ")
+        self.assertNotIn("https://example.test/photo", output_xml)
 
 
 if __name__ == "__main__":

@@ -101,21 +101,12 @@ def _dedicated_box(section, image_orientation, is_first_unit):
 
 
 def _insert_dedicated(doc, anchor, item, number, total, image_orientation,
-                      is_first_unit=False):
+                      is_first_unit=False, show_title=True):
     kind, stream, size = _prepare_dedicated_item(item, image_orientation)
     section = doc.sections[-1]
     box_w, box_h = _dedicated_box(
         section, image_orientation, is_first_unit
     )
-
-    title = doc.add_paragraph()
-    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    title.paragraph_format.space_after = Pt(8)
-    label = "BUKTI DUKUNG PDF" if kind == "pdf_page" else "BUKTI DUKUNG"
-    run = title.add_run(f"{label} ({number}/{total})")
-    run.bold = True
-    run.font.size = Pt(12)
-    anchor.addnext(title._p)
 
     paragraph = doc.add_paragraph()
     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -126,7 +117,18 @@ def _insert_dedicated(doc, anchor, item, number, total, image_orientation,
     paragraph.add_run().add_picture(
         stream, width=Inches(width), height=Inches(height)
     )
-    title._p.addnext(paragraph._p)
+    if show_title:
+        title = doc.add_paragraph()
+        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        title.paragraph_format.space_after = Pt(8)
+        label = "BUKTI DUKUNG PDF" if kind == "pdf_page" else "BUKTI DUKUNG"
+        run = title.add_run(f"{label} ({number}/{total})")
+        run.bold = True
+        run.font.size = Pt(12)
+        anchor.addnext(title._p)
+        title._p.addnext(paragraph._p)
+    else:
+        anchor.addnext(paragraph._p)
     return paragraph._p
 
 
@@ -182,6 +184,62 @@ def _insert_grid(doc, anchor, images):
     return anchor
 
 
+def insert_evidence_items(doc, target, items, image_layout,
+                          image_orientation=IMAGE_ORIENTATION_PORTRAIT,
+                          show_titles=True):
+    """Lay out already-downloaded evidence immediately after *target*.
+
+    Ordinary images follow the selected grid/dedicated layout. Rendered PDF
+    pages are always placed on dedicated pages, matching built-in evidence.
+    """
+    if image_layout not in IMAGE_LAYOUTS:
+        raise ValueError(f"Mode tata letak gambar tidak dikenal: {image_layout}")
+    if image_orientation not in IMAGE_ORIENTATIONS:
+        raise ValueError(
+            "Orientasi gambar tidak dikenal: " + str(image_orientation)
+        )
+    if not items:
+        return 0
+
+    # Build page units while preserving source order. PDF pages always form a
+    # dedicated unit; ordinary images use the selected mode and resume after it.
+    units = []
+    pending_images = []
+
+    def flush_images():
+        while pending_images:
+            size = 5 if image_layout == IMAGE_LAYOUT_GRID else 1
+            units.append(("grid" if size == 5 else "dedicated",
+                          pending_images[:size]))
+            del pending_images[:size]
+
+    for item in items:
+        if item[0] == "pdf_page":
+            flush_images()
+            units.append(("dedicated", [item]))
+        else:
+            pending_images.append(item)
+    flush_images()
+
+    anchor = target._p
+    evidence_number = 0
+    total = len(items)
+    for unit_index, (unit_kind, unit_items) in enumerate(units):
+        if unit_index:
+            anchor = _page_break(doc, anchor)
+        if unit_kind == "grid":
+            anchor = _insert_grid(doc, anchor, unit_items)
+            evidence_number += len(unit_items)
+        else:
+            evidence_number += 1
+            anchor = _insert_dedicated(
+                doc, anchor, unit_items[0], evidence_number, total,
+                image_orientation, is_first_unit=(unit_index == 0),
+                show_title=show_titles,
+            )
+    return len(items)
+
+
 def insert_evidence(doc, links_str, placeholder, image_layout, extract_file_id,
                     replace_text, evidence_downloader,
                     image_orientation=IMAGE_ORIENTATION_PORTRAIT):
@@ -221,40 +279,6 @@ def insert_evidence(doc, links_str, placeholder, image_layout, extract_file_id,
 
     if not items:
         return 0, warnings
-
-    # Build page units while preserving source order. PDF pages always form a
-    # dedicated unit; ordinary images use the selected mode and resume after it.
-    units = []
-    pending_images = []
-
-    def flush_images():
-        while pending_images:
-            size = 5 if image_layout == IMAGE_LAYOUT_GRID else 1
-            units.append(("grid" if size == 5 else "dedicated",
-                          pending_images[:size]))
-            del pending_images[:size]
-
-    for item in items:
-        if item[0] == "pdf_page":
-            flush_images()
-            units.append(("dedicated", [item]))
-        else:
-            pending_images.append(item)
-    flush_images()
-
-    anchor = target._p
-    evidence_number = 0
-    total = len(items)
-    for unit_index, (unit_kind, unit_items) in enumerate(units):
-        if unit_index:
-            anchor = _page_break(doc, anchor)
-        if unit_kind == "grid":
-            anchor = _insert_grid(doc, anchor, unit_items)
-            evidence_number += len(unit_items)
-        else:
-            evidence_number += 1
-            anchor = _insert_dedicated(
-                doc, anchor, unit_items[0], evidence_number, total,
-                image_orientation, is_first_unit=(unit_index == 0),
-            )
-    return len(items), warnings
+    return insert_evidence_items(
+        doc, target, items, image_layout, image_orientation
+    ), warnings

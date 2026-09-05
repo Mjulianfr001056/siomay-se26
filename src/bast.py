@@ -37,7 +37,11 @@ from src.bapp_ppl_t2 import (
     insert_gdrive_images,
     _slug,
 )
-from src.document_generator import row_placeholder_replacements, validate_custom_columns
+from src.document_generator import (
+    insert_custom_url_images,
+    row_placeholder_replacements,
+    validate_custom_columns,
+)
 
 # -- Skema sheet wajib ------------------------------------------------
 REQUIRED_SCHEMA = {
@@ -420,6 +424,14 @@ def _generate_one_doc(row, kind, df_tugas, df_mitra, kec_map,
                   f"wilayah={len(wilayah_rows)} baris"}
 
     doc = Document(template_path)
+    builtin_fields = {
+        column for columns in REQUIRED_SCHEMA.values() for column in columns
+    }
+    insert_custom_url_images(
+        doc, row, builtin_fields,
+        image_layout=image_layout,
+        image_orientation=image_orientation,
+    )
     replacements = row_placeholder_replacements(row)
     # The evidence column is consumed by insert_gdrive_images, not rendered as
     # its source URL in the DOCX.

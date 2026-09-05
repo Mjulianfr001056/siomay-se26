@@ -6,10 +6,12 @@ placeholders found in body paragraphs, table cells, headers and footers.
 
 If python-docx is unavailable, callers can fall back to copy_template().
 """
+import io
 import os
 import re
 import shutil
 from copy import copy
+from urllib.parse import urlparse
 
 try:
     from docx import Document
@@ -160,6 +162,102 @@ def row_placeholder_replacements(row, fields=None) -> dict:
         for key in keys
         if re.fullmatch(r"[A-Za-z0-9_]+", str(key))
     }
+
+
+def _is_http_url(value: str) -> bool:
+    """Return whether *value* is one complete HTTP(S) URL."""
+    parsed = urlparse(value)
+    return parsed.scheme.lower() in {"http", "https"} and bool(parsed.netloc)
+
+
+def _remove_token_from_paragraph(paragraph, token) -> int:
+    """Remove every possibly split-run *token* and return its occurrence count."""
+    removed = 0
+    while token in "".join(run.text for run in paragraph.runs):
+        runs = paragraph.runs
+        text = "".join(run.text for run in runs)
+        start = text.index(token)
+        end = start + len(token)
+        starts = []
+        position = 0
+        for run in runs:
+            starts.append(position)
+            position += len(run.text)
+        first = max(i for i, run_start in enumerate(starts) if run_start <= start)
+        last = max(i for i, run_start in enumerate(starts) if run_start < end)
+        prefix = runs[first].text[:start - starts[first]]
+        suffix = runs[last].text[end - starts[last]:]
+        runs[first].text = prefix
+        for index in range(first + 1, last + 1):
+            runs[index].text = ""
+
+        if suffix:
+            suffix_run = paragraph.add_run(suffix)
+            suffix_run.style = runs[last].style
+            runs[first]._r.addnext(suffix_run._r)
+        removed += 1
+    return removed
+
+
+def insert_custom_url_images(doc, row, builtin_fields=(), *,
+                             image_layout="grid",
+                             image_orientation="portrait",
+                             downloader=None) -> set[str]:
+    """Insert image/PDF-valued custom fields using the evidence layout engine.
+
+    Only columns outside *builtin_fields* are custom. A custom value is fetched
+    only when its exact placeholder still exists and the complete value is an
+    HTTP(S) URL. Google Drive values support images and PDFs; other web URLs are
+    validated as images. Each custom placeholder acts as an evidence anchor and
+    follows the same selected layout/orientation as built-in evidence. If the
+    download or validation fails, the token remains for URL-as-text fallback.
+    """
+    if row is None:
+        return set()
+    from utils.evidence import insert_evidence_items
+    from utils.images import (
+        download_url_evidence,
+    )
+
+    builtin = {str(field) for field in builtin_fields}
+    paragraphs = list(_iter_paragraphs(doc))
+    consumed = set()
+    for key in row.index:
+        name = str(key)
+        if name in builtin or not re.fullmatch(r"[A-Za-z0-9_]+", name):
+            continue
+        token = "{{" + name + "}}"
+        targets = [p for p in paragraphs if token in p.text]
+        value = clean_value(row.get(key, ""))
+        if not targets or not _is_http_url(value):
+            continue
+        try:
+            if downloader is None:
+                items = download_url_evidence(value)
+            else:
+                # Preserve the injectable legacy downloader contract used by
+                # callers/tests: ``(PNG stream, open PIL image)``.
+                stream, image = downloader(value)
+                try:
+                    size = image.size
+                    stream.seek(0)
+                    image_bytes = stream.read()
+                finally:
+                    image.close()
+                items = [("image", io.BytesIO(image_bytes), size)]
+        except Exception:
+            continue
+        count = 0
+        for paragraph in targets:
+            occurrences = _remove_token_from_paragraph(paragraph, token)
+            for _ in range(occurrences):
+                count += insert_evidence_items(
+                    doc, paragraph, items, image_layout, image_orientation,
+                    show_titles=False,
+                )
+        if count:
+            consumed.add(token)
+    return consumed
 
 
 def extend_input_template(

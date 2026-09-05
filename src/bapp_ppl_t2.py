@@ -21,7 +21,11 @@ import re
 import pandas as pd
 from docx import Document
 from docx.oxml.ns import qn
-from src.document_generator import row_placeholder_replacements, validate_custom_columns
+from src.document_generator import (
+    insert_custom_url_images,
+    row_placeholder_replacements,
+    validate_custom_columns,
+)
 from utils.images import (
     HAS_HEIF,
     HAS_PIL,
@@ -352,6 +356,11 @@ def iter_generate(dfs: dict, template_path: str, out_dir: str,
                "msg": f"[{idx + 1}/{total}] {who} (NIK {nik})"}
 
         doc = Document(template_path)
+        insert_custom_url_images(
+            doc, row, REQUIRED_COLUMNS,
+            image_layout=image_layout,
+            image_orientation=image_orientation,
+        )
 
         # Build replacements from PLACEHOLDER_MAP
         replacements = row_placeholder_replacements(row)

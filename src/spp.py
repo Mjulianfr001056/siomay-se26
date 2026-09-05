@@ -23,7 +23,11 @@ from docx import Document
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.table import _Row
-from src.document_generator import row_placeholder_replacements, validate_custom_columns
+from src.document_generator import (
+    insert_custom_url_images,
+    row_placeholder_replacements,
+    validate_custom_columns,
+)
 
 # -- Skema sheet wajib ------------------------------------------------
 SHEET_DATA_MITRA = "data_mitra"
@@ -448,6 +452,10 @@ def _generate_ppl_doc(
     )
 
     doc = Document(template_path)
+    builtin_fields = {
+        column for columns in REQUIRED_SCHEMA.values() for column in columns
+    }
+    insert_custom_url_images(doc, source_row, builtin_fields)
     replacements = row_placeholder_replacements(source_row) if source_row is not None else {}
     replacements.update({
             "{{" + number_placeholder + "}}": no_input,
@@ -501,6 +509,10 @@ def _generate_pml_doc(
         })
 
     doc = Document(template_path)
+    builtin_fields = {
+        column for columns in REQUIRED_SCHEMA.values() for column in columns
+    }
+    insert_custom_url_images(doc, source_row, builtin_fields)
     replacements = row_placeholder_replacements(source_row) if source_row is not None else {}
     replacements.update({
             "{{" + number_placeholder + "}}": no_input,
