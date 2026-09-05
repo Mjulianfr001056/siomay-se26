@@ -284,6 +284,35 @@ class TemplatePlaceholderValidationTests(unittest.TestCase):
             original.close()
             generated.close()
 
+    def test_custom_columns_ignore_formatted_empty_trailing_columns(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = os.path.join(directory, "source.xlsx")
+            output = os.path.join(directory, "output.xlsx")
+            workbook = openpyxl.Workbook()
+            worksheet = workbook.active
+            worksheet.title = "data_mitra"
+            worksheet.append(["nik", "bukti_dukung_bast"])
+            worksheet.append(["001", "https://example.test/evidence"])
+            # Reproduce bundled workbooks whose formatting extends through Z.
+            worksheet["Z1"].fill = openpyxl.styles.PatternFill(
+                fill_type="solid", fgColor="FFFF00",
+            )
+            workbook.save(source)
+            workbook.close()
+
+            extend_input_template(
+                source, output, "data_mitra", ["custom_one", "custom_two"],
+            )
+
+            generated = openpyxl.load_workbook(output)
+            generated_sheet = generated["data_mitra"]
+            self.assertEqual(generated_sheet["C1"].value, "custom_one")
+            self.assertEqual(generated_sheet["D1"].value, "custom_two")
+            self.assertIsNone(generated_sheet["AA1"].value)
+            self.assertEqual(generated_sheet["C2"].number_format, "@")
+            self.assertEqual(generated_sheet["D2"].number_format, "@")
+            generated.close()
+
 
 if __name__ == "__main__":
     unittest.main()

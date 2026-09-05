@@ -263,7 +263,12 @@ def insert_custom_url_images(doc, row, builtin_fields=(), *,
 def extend_input_template(
     source_path: str, output_path: str, sheet_name: str, custom_fields,
 ) -> str:
-    """Copy an XLSX and append custom Text-format columns to *sheet_name*."""
+    """Copy an XLSX and append custom Text-format columns after its headers.
+
+    ``Worksheet.max_column`` may include visually formatted but empty columns.
+    Determine the insertion point from actual row-1 headers so custom fields
+    remain directly beside the built-in input columns.
+    """
     import openpyxl
 
     workbook = openpyxl.load_workbook(source_path)
@@ -276,10 +281,11 @@ def extend_input_template(
             for cell in worksheet[1]
             if cell.value is not None
         }
+        next_column = max(headers.values(), default=0) + 1
         for field in custom_fields or []:
             if field in headers:
                 continue
-            column = worksheet.max_column + 1
+            column = next_column
             cell = worksheet.cell(row=1, column=column, value=field)
             if column > 1:
                 source = worksheet.cell(row=1, column=column - 1)
@@ -296,6 +302,7 @@ def extend_input_template(
                 worksheet.cell(row=row_number, column=column).number_format = "@"
             cell.number_format = "@"
             headers[field] = column
+            next_column += 1
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
         workbook.save(output_path)
     finally:

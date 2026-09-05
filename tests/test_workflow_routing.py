@@ -113,10 +113,38 @@ class WorkflowRoutingTests(unittest.TestCase):
                 sheet_name = (
                     "input" if document_id.startswith("bapp_") else "data_mitra"
                 )
+                custom_fields = ["catalog_custom", "catalog_custom_second"]
+                source_workbook = openpyxl.load_workbook(
+                    document_type.input_template_path, read_only=True,
+                )
+                source_headers = [
+                    cell.value for cell in next(
+                        source_workbook[sheet_name].iter_rows()
+                    )
+                ]
+                source_workbook.close()
+                last_builtin_column = max(
+                    index for index, value in enumerate(source_headers, start=1)
+                    if value is not None
+                )
+
                 extend_input_template(
                     document_type.input_template_path, input_path,
-                    sheet_name, ["catalog_custom"],
+                    sheet_name, custom_fields,
                 )
+                generated_workbook = openpyxl.load_workbook(
+                    input_path, read_only=True,
+                )
+                generated_sheet = generated_workbook[sheet_name]
+                self.assertEqual(
+                    generated_sheet.cell(1, last_builtin_column + 1).value,
+                    "catalog_custom",
+                )
+                self.assertEqual(
+                    generated_sheet.cell(1, last_builtin_column + 2).value,
+                    "catalog_custom_second",
+                )
+                generated_workbook.close()
                 ok, errors, _ = validate_document_input(
                     document_type, input_path, template_path=template_path,
                 )
