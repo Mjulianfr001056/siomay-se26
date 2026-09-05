@@ -5,7 +5,7 @@
 **SIOMAY** adalah aplikasi desktop Windows untuk membuat dokumen administrasi Sensus Ekonomi 2026 (SE2026) secara massal dari data Microsoft Excel dan template Microsoft Word. Aplikasi memandu pengguna dari pemilihan dokumen hingga penyimpanan hasil, sekaligus memvalidasi input untuk mengurangi kesalahan dan menjaga konsistensi dokumen.
 
 > **Status:** Stable<br>
-> **Versi saat ini:** `v2026.1.7`<br>
+> **Versi saat ini:** `v2026.1.8`<br>
 > **Platform rilis:** Windows x64
 
 ## Daftar Isi

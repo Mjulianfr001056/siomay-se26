@@ -4,6 +4,20 @@ Semua perubahan penting pada proyek SIOMAY didokumentasikan di berkas ini. Forma
 
 ---
 
+## [v2026.1.8] - 2026-09-05
+
+### Placeholder Kustom dan Bukti Dukung
+- **Tata Letak Tautan Kustom**: Gambar dan PDF multipage dari placeholder kustom kini mengikuti pilihan tata letak serta orientasi bukti tanpa menambahkan judul `BUKTI DUKUNG`.
+- **Dukungan Tautan Fleksibel**: Menambahkan dukungan gambar dan PDF dari Google Drive maupun tautan HTTP(S) langsung, dengan URL asli tetap dipertahankan jika unduhan atau validasi gagal.
+- **Placeholder Tanpa Batas**: Langkah 2 kini menjelaskan bahwa pengguna dapat menambahkan sebanyak mungkin placeholder kustom dan mengisinya dengan tautan gambar.
+- **Informasi Kolom Tambahan**: Langkah 3 menampilkan pemberitahuan hijau ketika template Excel mendapat kolom tambahan dari placeholder kustom.
+
+### Keandalan dan Pengujian
+- Mempertahankan dukungan placeholder yang terpisah pada beberapa *run* Word serta judul bukti bawaan untuk placeholder standar.
+- Menambahkan pengujian regresi untuk penggantian teks, penyisipan gambar/PDF kustom, tata letak bukti, orientasi, dan validasi template.
+
+---
+
 ## [v2026.1.7] - 2026-09-04
 
 ### Orientasi Bukti Dukung

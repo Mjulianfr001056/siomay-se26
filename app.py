@@ -434,6 +434,8 @@ def main(page: ft.Page):
         doc = current_doc()
         builtin = doc.builtin_template_path
         restyle_doc_cards()
+        state["builtin_placeholders"] = set()
+        state["custom_placeholders"] = []
         # Dokumen tanpa template: auto-set sentinel agar gate Step 2 terpenuhi
         if doc.no_template:
             state["template_path"] = "__blank__"
@@ -444,8 +446,6 @@ def main(page: ft.Page):
             step1_summary.color = ft.Colors.BLUE_900
         else:
             state["template_path"] = None
-            state["builtin_placeholders"] = set()
-            state["custom_placeholders"] = []
             step1_summary.value = (
                 f"Dipilih: {doc.label} — template bawaan "
                 + (f"tersedia ({doc.template_filename})." if builtin
@@ -899,6 +899,44 @@ def main(page: ft.Page):
         if files:
             process_data_file(files[0].path)
 
+    custom_columns_hint_text = ft.Text(
+        "", size=12, color=ft.Colors.GREEN_900, expand=True,
+    )
+    custom_columns_hint = ft.Container(
+        visible=False,
+        content=ft.Row(
+            [
+                ft.Icon(ft.Icons.INFO_OUTLINE_ROUNDED, size=19,
+                        color=ft.Colors.GREEN_700),
+                custom_columns_hint_text,
+            ],
+            spacing=8,
+            vertical_alignment=ft.CrossAxisAlignment.START,
+        ),
+        bgcolor=ft.Colors.GREEN_50,
+        border=ft.Border.all(1, ft.Colors.GREEN_200),
+        border_radius=8,
+        padding=12,
+    )
+
+    def refresh_custom_columns_hint():
+        """Show the Step 3 notice when the input gains custom columns."""
+        custom = state["custom_placeholders"]
+        doc = current_doc()
+        supported = doc and (
+            doc.id.startswith("bapp_")
+            or doc.id.startswith("spp_")
+            or doc.id.startswith("bast_")
+        )
+        custom_columns_hint.visible = bool(custom and supported)
+        if custom_columns_hint.visible:
+            custom_columns_hint_text.value = (
+                f"Anda menambahkan {len(custom)} placeholder kustom. Template Excel "
+                "yang diunduh kini memiliki kolom tambahan: "
+                + ", ".join(custom)
+                + ". Isi kolom tersebut agar nilainya dapat dimasukkan ke dokumen."
+            )
+
     panel2 = ft.Column(
         [
             ft.Text("Upload Data", size=20, weight=ft.FontWeight.BOLD,
@@ -907,6 +945,7 @@ def main(page: ft.Page):
                     size=13, color=ft.Colors.GREY_600),
             ft.Divider(height=1, color=ft.Colors.GREY_300),
             ft.Container(height=4),
+            custom_columns_hint,
             ft.Row(
                 [
                     ft.Button(
@@ -1220,6 +1259,27 @@ def main(page: ft.Page):
                 "Pilih Template Word. Penanda {{nama_kolom}} pada template akan "
                 "diganti dengan kolom dari file data Anda.",
                 size=12, color=ft.Colors.GREY_600,
+            ),
+            ft.Container(
+                content=ft.Row(
+                    [
+                        ft.Icon(ft.Icons.INFO_OUTLINE_ROUNDED, size=19,
+                                color=ft.Colors.GREEN_700),
+                        ft.Text(
+                            "Anda dapat menambahkan placeholder {{nama_kolom}} "
+                            "sebanyak yang dibutuhkan. Placeholder juga mendukung "
+                            "gambar: isi kolom terkait dengan tautan gambar agar "
+                            "gambar dimasukkan ke dokumen secara otomatis.",
+                            size=12, color=ft.Colors.GREEN_900, expand=True,
+                        ),
+                    ],
+                    spacing=8,
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                ),
+                bgcolor=ft.Colors.GREEN_50,
+                border=ft.Border.all(1, ft.Colors.GREEN_200),
+                border_radius=8,
+                padding=12,
             ),
             ft.Row(
                 [
@@ -2221,6 +2281,7 @@ def main(page: ft.Page):
             "step": 0, "max_step": 0, "doc_id": None, "file_path": None,
             "dfs": {}, "data_ok": False, "errors": [],
             "template_path": None, "template_source": None,
+            "builtin_placeholders": set(), "custom_placeholders": [],
             "generated_files": [], "generation_done": False,
             "gen_duration": None, "conv_duration": None,
             "saved_path": None, "saved": False,
@@ -2707,6 +2768,8 @@ def main(page: ft.Page):
             p.visible = i == index
         if index == 1:
             refresh_step3()
+        if index == 2:
+            refresh_custom_columns_hint()
         if index == 3:
             refresh_step4()
         if index == 4:
