@@ -6,15 +6,23 @@ Semua perubahan penting pada proyek SIOMAY didokumentasikan di berkas ini. Forma
 
 ## [v2026.1.8] - 2026-09-05
 
-### Placeholder Kustom dan Bukti Dukung
-- **Tata Letak Tautan Kustom**: Gambar dan PDF multipage dari placeholder kustom kini mengikuti pilihan tata letak serta orientasi bukti tanpa menambahkan judul `BUKTI DUKUNG`.
-- **Dukungan Tautan Fleksibel**: Menambahkan dukungan gambar dan PDF dari Google Drive maupun tautan HTTP(S) langsung, dengan URL asli tetap dipertahankan jika unduhan atau validasi gagal.
-- **Placeholder Tanpa Batas**: Langkah 2 kini menjelaskan bahwa pengguna dapat menambahkan sebanyak mungkin placeholder kustom dan mengisinya dengan tautan gambar.
-- **Informasi Kolom Tambahan**: Langkah 3 menampilkan pemberitahuan hijau ketika template Excel mendapat kolom tambahan dari placeholder kustom.
+### Ditambahkan
+- **Placeholder Kustom Tanpa Batas**: Template Word BAPP, SPP, dan BAST dapat memuat sebanyak mungkin placeholder tambahan berformat `{{nama_kolom}}`; nilai teks dari kolom Excel dengan nama yang sama akan dimasukkan ke dokumen.
+- **Kolom Excel Otomatis**: Template Excel yang diunduh setelah template Word diterima otomatis mendapat satu kolom tambahan untuk setiap placeholder kustom.
+- **Gambar dan PDF dari Placeholder Kustom**: Nilai URL lengkap dapat menyisipkan gambar dari Google Drive atau HTTP(S) langsung serta PDF multipage dari Google Drive pada posisi placeholder.
+
+### Diubah
+- **Panduan Langkah 2**: Menambahkan kotak informasi hijau permanen yang menjelaskan placeholder kustom tanpa batas dan dukungan URL gambar.
+- **Panduan Langkah 3**: Menambahkan kotak informasi hijau kondisional yang menampilkan jumlah dan nama kolom kustom pada template Excel.
+- **Tata Letak Bukti Kustom**: Gambar dan halaman PDF kustom mengikuti pilihan tata letak serta orientasi bukti tanpa menambahkan judul `BUKTI DUKUNG`; urutan halaman PDF tetap dipertahankan.
+- **Fallback URL Aman**: URL asli tetap digunakan sebagai teks apabila unduhan atau validasi media gagal.
+
+### Diperbaiki
+- State placeholder kustom kini dibersihkan saat pengguna mengganti jenis dokumen atau memulai ulang sesi, sehingga kolom dari template sebelumnya tidak terbawa.
 
 ### Keandalan dan Pengujian
 - Mempertahankan dukungan placeholder yang terpisah pada beberapa *run* Word serta judul bukti bawaan untuk placeholder standar.
-- Menambahkan pengujian regresi untuk penggantian teks, penyisipan gambar/PDF kustom, tata letak bukti, orientasi, dan validasi template.
+- Menambahkan pengujian regresi untuk penggantian teks, pembuatan kolom Excel, penyisipan gambar/PDF kustom, fallback URL, tata letak bukti, orientasi, dan validasi template.
 
 ---
 

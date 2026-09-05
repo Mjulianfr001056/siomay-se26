@@ -31,6 +31,8 @@
 - Validasi struktur workbook, sheet, kolom, relasi data, dan nilai yang diperlukan sesuai jenis dokumen.
 - Validasi template Word sebelum generate, termasuk placeholder yang hilang atau tidak dikenal.
 - Penggantian placeholder `{{nama_kolom}}` pada paragraf, tabel, header, dan footer, termasuk placeholder yang terpecah menjadi beberapa *run* Word.
+- Placeholder kustom tanpa batas pada template Word; kolom pasangannya ditambahkan otomatis ke template Excel yang diunduh.
+- Nilai placeholder kustom dapat berupa teks, tautan gambar, atau tautan PDF dari Google Drive; gambar juga dapat berasal dari URL HTTP(S) langsung.
 - Pembuatan DOCX massal dengan log proses, progres, timer aktif, serta ringkasan durasi.
 - Pengunduhan dan penyisipan bukti dukung dari Google Drive dalam format JPEG, PNG, HEIC, HEIF, atau PDF.
 - Koreksi orientasi foto berdasarkan metadata EXIF dan konversi HEIC/HEIF otomatis agar dapat dimasukkan ke DOCX.
@@ -96,18 +98,20 @@ Pilih satu jenis dokumen untuk sesi saat ini. Setiap pilihan menentukan template
 Untuk dokumen berbasis template:
 
 1. Klik **Download Template Word**.
-2. Sunting salinannya di Microsoft Word tanpa menghapus atau mengganti penanda `{{nama_kolom}}`.
-3. Simpan sebagai `.docx`.
-4. Klik **Pilih Template Word (.docx)** untuk mengunggah kembali template yang telah disunting.
+2. Sunting salinannya di Microsoft Word tanpa menghapus atau mengganti placeholder bawaan `{{nama_kolom}}`.
+3. Jika diperlukan, tambahkan placeholder kustom baru menggunakan format `{{nama_kolom_baru}}`. Nama hanya boleh berisi huruf, angka, dan garis bawah, misalnya `{{nomor_surat_tambahan}}` atau `{{foto_kegiatan}}`.
+4. Simpan sebagai `.docx`.
+5. Klik **Pilih Template Word (.docx)** untuk mengunggah kembali template yang telah disunting.
 
-SIOMAY memeriksa placeholder di isi dokumen, tabel, header, dan footer. Template ditolak bila placeholder wajib hilang atau terdapat placeholder yang tidak dikenal. Bukti Terima Paket Internet dibuat dari dokumen kosong sehingga langkah ini tidak memerlukan template Word.
+SIOMAY memeriksa placeholder di isi dokumen, tabel, header, dan footer. Template ditolak bila ada placeholder bawaan wajib yang hilang. Jumlah placeholder kustom tidak dibatasi. Setelah template yang valid diunggah, placeholder bawaan ditampilkan dengan warna indigo dan placeholder kustom dengan warna hijau pada pratinjau. Bukti Terima Paket Internet dibuat dari dokumen kosong sehingga langkah ini tidak memerlukan template Word.
 
 ### 3. Unggah dan Validasi Data
 
-1. Klik **Download Template Excel** untuk memperoleh format yang sesuai dengan dokumen terpilih.
-2. Isi workbook tanpa mengganti nama sheet atau kolom yang diwajibkan.
-3. Simpan dalam format `.xlsx`, lalu unggah ke SIOMAY.
-4. Periksa ringkasan hasil validasi dan perbaiki kesalahan yang ditampilkan sebelum melanjutkan.
+1. Setelah template Word diterima, periksa pemberitahuan hijau di Langkah 3. Jika terdapat placeholder kustom, pemberitahuan ini menampilkan seluruh nama kolom tambahan yang akan dibuat.
+2. Klik **Download Template Excel** untuk memperoleh format yang sesuai dengan dokumen terpilih. Untuk BAPP, SPP, dan BAST, setiap placeholder kustom otomatis menjadi kolom tambahan dengan nama yang sama tanpa kurung kurawal.
+3. Isi workbook tanpa mengganti nama sheet atau kolom yang diwajibkan. Isi kolom kustom dengan teks biasa untuk substitusi teks, atau dengan satu URL HTTP(S) lengkap untuk menyisipkan gambar/PDF pada posisi placeholder.
+4. Simpan dalam format `.xlsx`, lalu unggah ke SIOMAY.
+5. Periksa ringkasan hasil validasi dan perbaiki kesalahan yang ditampilkan sebelum melanjutkan.
 
 Jangan menggunakan format Excel dari kelompok atau termin lain. SPP Termin 1 dan Termin 2 memiliki alur input dan validasi yang terpisah.
 
@@ -122,7 +126,9 @@ Khusus BAPP Termin 2 dan BAST, pilih salah satu tata letak bukti dukung:
 
 Setiap halaman bukti berformat PDF selalu ditempatkan pada halaman khusus,
 terlepas dari pilihan tata letak. Gambar setelah PDF kembali mengikuti pilihan
-grid atau halaman khusus pengguna.
+grid atau halaman khusus pengguna. Tautan pada placeholder kustom mengikuti
+pilihan tata letak dan orientasi bukti yang sama, tetapi tidak menambahkan judul
+`BUKTI DUKUNG` pada dokumen hasil.
 
 ### 5. Simpan Hasil
 
@@ -130,7 +136,7 @@ Pilih format keluaran yang tersedia, tentukan lokasi penyimpanan, lalu tunggu pr
 
 ## Gambar dan Bukti Dukung
 
-Alur BAPP, BAST, dan Bukti Terima dapat menggunakan tautan Google Drive untuk mengambil foto atau tangkapan layar. Agar gambar dapat diunduh:
+Alur BAPP, BAST, dan Bukti Terima dapat menggunakan tautan Google Drive untuk mengambil foto atau tangkapan layar. Placeholder kustom pada BAPP, SPP, dan BAST juga dapat diisi dengan URL HTTP(S) gambar langsung atau URL Google Drive berisi gambar/PDF. Agar bukti dapat diunduh:
 
 - Atur akses file menjadi **Anyone with the link / Siapa saja yang memiliki tautan**.
 - Jika file berasal dari folder unggahan Google Forms, pastikan folder tersebut juga dapat diakses melalui tautan.
@@ -138,6 +144,8 @@ Alur BAPP, BAST, dan Bukti Terima dapat menggunakan tautan Google Drive untuk me
 - Format JPEG, PNG, HEIC, HEIF, dan PDF didukung pada BAPP Termin 2 dan BAST.
   Setiap halaman PDF dirender dan disisipkan sebagai halaman khusus. Orientasi
   EXIF pada gambar diterapkan otomatis.
+- Pada kolom placeholder kustom, gunakan satu URL lengkap per sel. PDF kustom didukung melalui tautan Google Drive, sedangkan URL web selain Google Drive harus mengarah ke gambar yang valid.
+- Jika nilai kustom bukan URL, nilainya dimasukkan sebagai teks. Jika pengunduhan atau validasi URL gagal, URL asli tetap dimasukkan sebagai teks agar informasi tidak hilang.
 - Respons HTML, file kosong, dan gambar rusak/tidak dikenal dilaporkan sebagai peringatan tanpa harus menggagalkan seluruh batch.
 
 Perhatikan bahwa penggunaan tautan yang dapat diakses siapa saja memiliki implikasi privasi. Batasi isi gambar pada data yang memang diperlukan, dan cabut akses tautan setelah proses selesai bila kebijakan kerja mengharuskannya.
@@ -179,7 +187,7 @@ Pastikan folder `LibreOffice` masih utuh dan berada di samping `SIOMAY.exe`. Eks
 
 ### Template Word ditolak
 
-Unduh kembali template untuk dokumen terpilih. Pertahankan semua placeholder `{{nama_kolom}}`, jangan menambahkan placeholder baru, dan unggah berkas berformat `.docx`, bukan `.doc`.
+Unduh kembali template untuk dokumen terpilih. Pertahankan semua placeholder bawaan, pastikan placeholder kustom mengikuti format `{{nama_kolom}}` dengan huruf, angka, atau garis bawah saja, lalu unggah berkas `.docx`, bukan `.doc`. Placeholder kustom boleh ditambahkan sebanyak yang diperlukan.
 
 ### Data Excel tidak valid
 
@@ -189,9 +197,12 @@ Gunakan template Excel yang diunduh setelah memilih dokumen. Jangan mengubah nam
 
 Periksa akses **Siapa saja yang memiliki tautan**, validitas URL, koneksi internet, dan isi file. Halaman login/HTML bukan file gambar dan akan ditolak.
 
-### Melaporkan masalah
 
-Sertakan versi aplikasi, jenis dokumen, langkah untuk mereproduksi masalah, dan pesan error. Sebelum mengirim tangkapan layar atau log, hapus seluruh data pribadi/sensitif. Kanal umpan balik tersedia pada halaman rilis aplikasi.
+### 💬 Feedback & Laporan Masalah
+
+Punya kendala atau saran pengembangan? Kirimkan umpan balik Anda melalui form berikut:
+🔗 http://s.bps.go.id/FeedbackSIOMAY
+
 
 ## Untuk Pengembang
 
@@ -236,7 +247,7 @@ python -m compileall -q app.py src utils
 python -m unittest discover -s tests -v
 ```
 
-Suite pengujian mencakup generator dokumen, pemisahan routing workflow, placeholder DOCX, gambar JPEG/PNG/HEIC, tata letak BAPP Termin 2, konversi PDF batch, estimasi konversi, pembaruan/rilis, dan helper UI.
+Suite pengujian mencakup generator dokumen, pemisahan routing workflow, placeholder DOCX bawaan dan kustom, penyisipan gambar/PDF dari URL, gambar JPEG/PNG/HEIC, tata letak serta orientasi bukti, konversi PDF batch, estimasi konversi, pembaruan/rilis, dan helper UI.
 
 ### Build Windows
 
