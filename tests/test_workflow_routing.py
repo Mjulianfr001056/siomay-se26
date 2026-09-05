@@ -1,8 +1,11 @@
 """Catalog-wide regression tests for Excel and generator routing."""
 import unittest
+import os
+import tempfile
 from pathlib import Path
 
 import openpyxl
+from docx import Document
 
 from src import (
     bapp_pml,
@@ -21,6 +24,7 @@ from src.workflow_routing import (
     get_input_validator,
     validate_document_input,
 )
+from src.document_generator import extend_input_template
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -82,6 +86,41 @@ class WorkflowRoutingTests(unittest.TestCase):
 
         self.assertFalse(ok)
         self.assertIn("no_urut_spp_t2", errors[0])
+
+    def test_every_bapp_spp_and_bast_variant_requires_its_custom_column(self):
+        target_ids = [
+            document.id for document in DOCUMENT_TYPES
+            if document.id.startswith(("bapp_", "spp_", "bast_"))
+        ]
+        self.assertEqual(len(target_ids), 10)
+
+        for document_id in target_ids:
+            document_type = get_document_by_id(document_id)
+            with self.subTest(document=document_id), tempfile.TemporaryDirectory() as directory:
+                template_path = os.path.join(directory, "custom.docx")
+                template = Document(document_type.builtin_template_path)
+                template.add_paragraph("{{catalog_custom}}")
+                template.save(template_path)
+
+                ok, errors, _ = validate_document_input(
+                    document_type, document_type.input_template_path,
+                    template_path=template_path,
+                )
+                self.assertFalse(ok)
+                self.assertIn("catalog_custom", errors[0])
+
+                input_path = os.path.join(directory, "custom.xlsx")
+                sheet_name = (
+                    "input" if document_id.startswith("bapp_") else "data_mitra"
+                )
+                extend_input_template(
+                    document_type.input_template_path, input_path,
+                    sheet_name, ["catalog_custom"],
+                )
+                ok, errors, _ = validate_document_input(
+                    document_type, input_path, template_path=template_path,
+                )
+                self.assertTrue(ok, errors)
 
     def test_bundled_spp_assets_use_current_input_names_and_layout(self):
         termin_1_path = ROOT / "input" / "02_input_spp_t1.xlsx"

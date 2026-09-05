@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 from docx import Document
 
-from src import bapp_ppl
+from src import bapp_pml, bapp_ppl
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +27,21 @@ def _document_xml_text(path):
 
 
 class BappPplTermin1Tests(unittest.TestCase):
+    def test_pml_replacement_visits_nested_tables_headers_and_footers(self):
+        doc = Document()
+        nested = doc.add_table(rows=1, cols=1).cell(0, 0).add_table(rows=1, cols=1)
+        nested.cell(0, 0).text = "N={{custom}}"
+        doc.sections[0].header.paragraphs[0].text = "H={{custom}}"
+        doc.sections[0].footer.paragraphs[0].text = "F={{blank}}"
+
+        bapp_pml.replace_text_preserving_runs(
+            doc, {"{{custom}}": "001", "{{blank}}": ""}
+        )
+
+        self.assertEqual(nested.cell(0, 0).text, "N=001")
+        self.assertEqual(doc.sections[0].header.paragraphs[0].text, "H=001")
+        self.assertEqual(doc.sections[0].footer.paragraphs[0].text, "F=")
+
     def test_replace_handles_split_runs_and_surrounding_text(self):
         doc = Document()
         paragraph = doc.add_paragraph()

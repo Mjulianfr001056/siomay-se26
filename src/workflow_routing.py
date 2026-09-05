@@ -14,6 +14,9 @@ from src import (
     spp,
     spp_t2,
 )
+from src.document_generator import (
+    custom_template_placeholders,
+)
 
 
 INPUT_VALIDATORS = {
@@ -63,12 +66,23 @@ def get_document_generator(document):
 def validate_document_input(document, file_path: str, template_path: str | None = None):
     """Validate an Excel file using stable document-ID dispatch.
 
-    SPP Termin 2 additionally verifies that every Word placeholder has a
-    matching Excel column. Other workflows have explicit/static mappings.
+    BAPP, SPP and BAST custom placeholders must have exact, case-sensitive
+    columns in their designated row-data sheet.
     """
     validator = get_input_validator(document)
     if validator is None:
         return False, [f"Validator tidak tersedia untuk dokumen: {document.id if document else '-'}"], {}
-    if document.id in ("spp_t2_ppl", "spp_t2_pml"):
-        return validator(file_path, template_path=template_path)
-    return validator(file_path)
+    custom_sheet = None
+    if document.id.startswith("bapp_"):
+        custom_sheet = "input"
+    elif document.id.startswith("spp_") or document.id.startswith("bast_"):
+        custom_sheet = "data_mitra"
+    custom = []
+    if custom_sheet and template_path and document.builtin_template_path:
+        custom = custom_template_placeholders(
+            template_path, document.builtin_template_path
+        )
+    if custom_sheet:
+        return validator(file_path, custom_fields=custom)
+    ok, errors, dfs = validator(file_path)
+    return ok, errors, dfs

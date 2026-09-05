@@ -76,6 +76,38 @@ class SppTermin1InputNameTests(unittest.TestCase):
                 self.assertIn("no_urut_spp_t1", fields)
                 self.assertNotIn("no_input_spp_t1", fields)
 
+    def test_custom_fields_replace_exact_text_blank_and_cannot_override_builtins(self):
+        with tempfile.TemporaryDirectory() as directory:
+            template_path = os.path.join(directory, "template.docx")
+            document = Document()
+            document.add_paragraph(
+                "{{custom_code}}|{{blank_custom}}|{{nama_lengkap}}"
+            )
+            document.save(template_path)
+            dfs = {
+                spp.SHEET_DATA_MITRA: pd.DataFrame([{
+                    "nik": "001",
+                    "nama_lengkap": "NAMA RESMI",
+                    "jabatan": "PPL",
+                    "custom_code": "001",
+                    "blank_custom": "",
+                    # A custom/data value may not override the built-in mapping.
+                    "{{nama_lengkap}}": "SALAH",
+                }]),
+                spp.SHEET_NO_SPK: pd.DataFrame([{
+                    "nik": "001", "no_spk": "SPK", "no_urut_spp_t1": "1",
+                }]),
+                spp.SHEET_ALOKASI: pd.DataFrame([{
+                    "nik_ppl": "001", "nik_pml": "002",
+                    "target": "1", "capaian": "1", "persentase": "100",
+                }]),
+            }
+            events = list(spp.iter_generate("ppl", dfs, template_path, directory))
+            output_path = next(event["path"] for event in events if event["t"] == "file")
+            output = Document(output_path)
+
+        self.assertEqual(output.paragraphs[0].text, "001||NAMA RESMI")
+
 
 if __name__ == "__main__":
     unittest.main()

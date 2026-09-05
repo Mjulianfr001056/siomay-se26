@@ -24,6 +24,7 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from src.document_generator import row_placeholder_replacements, validate_custom_columns
 from docx.shared import Inches, Pt
 from utils.images import (
     HAS_HEIF,
@@ -72,7 +73,7 @@ GRID_MAX_HEIGHT_IN = 4.6
 GRID_GAP_IN        = 0.12
 
 
-def validate_input(file_path: str):
+def validate_input(file_path: str, custom_fields=None):
     """
     Validasi struktur file Excel input BAPP T1 PPL.
     Returns (is_valid, errors, dfs) -- dfs = {sheet_name: DataFrame}.
@@ -88,9 +89,11 @@ def validate_input(file_path: str):
             f"Sheet '{SHEET_NAME}' tidak ditemukan. "
             f"Sheet yang tersedia: {', '.join(xl.sheet_names)}"
         )
+        xl.close()
         return False, errors, {}
 
     df = xl.parse(SHEET_NAME, dtype=str)
+    xl.close()
     df.columns = [str(c).strip() for c in df.columns]
     df = df.fillna("")
     dfs[SHEET_NAME] = df
@@ -106,7 +109,9 @@ def validate_input(file_path: str):
         errors.append(f"Sheet '{SHEET_NAME}' kosong.")
         return False, errors, dfs
 
-    return True, [], dfs
+    errors.extend(validate_custom_columns(dfs, SHEET_NAME, custom_fields))
+
+    return not errors, errors, dfs
 
 
 def _norm(v) -> str:
@@ -248,12 +253,14 @@ def replace_text_preserving_runs(doc: Document, replacements: dict) -> None:
     for table in doc.tables:
         _process_table(table)
     for section in doc.sections:
-        _process_paragraphs(section.header.paragraphs)
-        for table in section.header.tables:
-            _process_table(table)
-        _process_paragraphs(section.footer.paragraphs)
-        for table in section.footer.tables:
-            _process_table(table)
+        for story in (
+            section.header, section.footer,
+            section.first_page_header, section.first_page_footer,
+            section.even_page_header, section.even_page_footer,
+        ):
+            _process_paragraphs(story.paragraphs)
+            for table in story.tables:
+                _process_table(table)
 
 
 def _extract_file_id(link: str):
@@ -457,7 +464,9 @@ def iter_generate(dfs: dict, template_path: str, out_dir: str):
         doc = Document(template_path)
 
         # Build replacements from PLACEHOLDER_MAP
-        replacements = {}
+        replacements = row_placeholder_replacements(row)
+        # Preserve the evidence token until insert_gdrive_images processes it.
+        replacements.pop(BUKTI_PLACEHOLDER, None)
         for ph_key, input_col in PLACEHOLDER_MAP.items():
             val = _norm(row.get(input_col, ""))
             replacements["{{" + ph_key + "}}"] = val

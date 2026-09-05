@@ -2,9 +2,12 @@
 
 import io
 import inspect
+import os
+import tempfile
 import unittest
 from unittest.mock import patch
 
+import pandas as pd
 from docx import Document
 from PIL import Image
 
@@ -59,6 +62,36 @@ def _document_with_placeholder(module):
 
 
 class BappTermin2ImageLayoutTests(unittest.TestCase):
+    def test_generators_reserve_evidence_column_for_image_insertion(self):
+        values = {
+            "nik": "3205000000000001",
+            "nama_lengkap": "PETUGAS UJI",
+            "no_spk": "SPK-001",
+            "no_urut_bapp_t2": "1",
+            "jml_sls_t2": "2",
+            "bukti_dukung_bapp_t2":
+                "https://drive.google.com/file/d/image-regression/view",
+        }
+        for module in MODULES:
+            with self.subTest(module=module.__name__), tempfile.TemporaryDirectory() as directory:
+                template_path = os.path.join(directory, "template.docx")
+                template = Document()
+                template.add_paragraph(module.BUKTI_PLACEHOLDER)
+                template.save(template_path)
+                dfs = {module.SHEET_NAME: pd.DataFrame([values])}
+
+                with patch.object(
+                    module, "_download_drive_evidence", side_effect=_evidence_image,
+                ):
+                    events = list(module.iter_generate(dfs, template_path, directory))
+
+                output_path = next(
+                    event["path"] for event in events if event["t"] == "file"
+                )
+                output = Document(output_path)
+                self.assertEqual(len(output.inline_shapes), 1)
+                self.assertNotIn(values["bukti_dukung_bapp_t2"], output.paragraphs[0].text)
+
     def test_bapp_generator_orientation_defaults_to_portrait(self):
         for module in MODULES:
             with self.subTest(module=module.__name__):

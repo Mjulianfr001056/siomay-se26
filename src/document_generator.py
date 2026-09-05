@@ -9,6 +9,7 @@ If python-docx is unavailable, callers can fall back to copy_template().
 import os
 import re
 import shutil
+from copy import copy
 
 try:
     from docx import Document
@@ -17,7 +18,9 @@ except Exception:  # pragma: no cover - depends on environment
     Document = None
     HAS_DOCX = False
 
-PLACEHOLDER_RE = re.compile(r"\{\{\s*(\w+)\s*\}\}")
+# Placeholder names are deliberately ASCII and exact. Malformed markers (for
+# example ``{{full name}}`` or ``{{ name }}``) are ordinary document text.
+PLACEHOLDER_RE = re.compile(r"\{\{([A-Za-z0-9_]+)\}\}")
 
 _EMPTY_TOKENS = {"", "nan", "none", "<na>", "nat"}
 
@@ -44,8 +47,28 @@ def build_values(record: dict) -> dict:
     }
 
 
+def iter_headers_and_footers(doc):
+    """Yield every distinct primary, first-page, and even-page header/footer."""
+    seen = set()
+    story_names = (
+        "header", "footer",
+        "first_page_header", "first_page_footer",
+        "even_page_header", "even_page_footer",
+    )
+    for section in doc.sections:
+        for story_name in story_names:
+            story = getattr(section, story_name)
+            # Multiple sections commonly link to the same header/footer part.
+            # Process each XML story once while still following those links.
+            story_id = id(story._element)
+            if story_id in seen:
+                continue
+            seen.add(story_id)
+            yield story
+
+
 def _iter_paragraphs(doc):
-    """Yield every paragraph: body, tables (incl. nested), headers, footers."""
+    """Yield paragraphs in the body and every Word header/footer variant."""
     def iter_table_paragraphs(tables):
         for table in tables:
             for row in table.rows:
@@ -56,21 +79,19 @@ def _iter_paragraphs(doc):
     for p in doc.paragraphs:
         yield p
     yield from iter_table_paragraphs(doc.tables)
-    for section in doc.sections:
-        for p in section.header.paragraphs:
+    for story in iter_headers_and_footers(doc):
+        for p in story.paragraphs:
             yield p
-        yield from iter_table_paragraphs(section.header.tables)
-        for p in section.footer.paragraphs:
-            yield p
-        yield from iter_table_paragraphs(section.footer.tables)
+        yield from iter_table_paragraphs(story.tables)
 
 
 def extract_template_placeholders(template_path: str) -> set[str]:
     """Return all unique ``{{field_name}}`` keys used by a DOCX template.
 
     This uses the same paragraph traversal as :func:`fill_row`, so validation
-    includes placeholders in document tables, headers, and footers as well as
-    the body. It also works when a placeholder is split across Word runs.
+    includes placeholders in document tables and all primary, first-page, and
+    even-page headers/footers as well as the body. It also works when a
+    placeholder is split across Word runs.
     """
     if not HAS_DOCX:
         raise RuntimeError("python-docx tidak tersedia")
@@ -87,17 +108,101 @@ def validate_template_placeholders(
 ) -> dict:
     """Compare a template's placeholders with the expected placeholder set.
 
-    Returns ``is_valid``, plus sorted ``missing`` and ``unexpected`` keys.
-    A valid edited template must retain every placeholder downloaded in Step 2
-    and must not introduce fields that the selected document does not expect.
+    Returns ``is_valid``, plus sorted ``missing``, ``unexpected`` and ``custom``
+    keys. Built-in fields are mandatory; additional well-formed fields are
+    accepted as custom Excel-backed placeholders.
     """
     actual = extract_template_placeholders(template_path)
     expected = set(expected_placeholders)
     return {
-        "is_valid": actual == expected,
+        "is_valid": expected <= actual,
         "missing": sorted(expected - actual),
         "unexpected": sorted(actual - expected),
+        "custom": sorted(actual - expected),
     }
+
+
+def custom_template_placeholders(
+    template_path: str | None, builtin_template_path: str | None,
+) -> list[str]:
+    """Return custom keys added to *template_path*, in deterministic order."""
+    if not template_path or not builtin_template_path:
+        return []
+    return sorted(
+        extract_template_placeholders(template_path)
+        - extract_template_placeholders(builtin_template_path)
+    )
+
+
+def validate_custom_columns(dfs: dict, sheet_name: str, custom_fields) -> list[str]:
+    """Return validation errors for custom fields absent from one input sheet."""
+    fields = list(custom_fields or [])
+    if not fields:
+        return []
+    dataframe = dfs.get(sheet_name)
+    if dataframe is None:
+        return [f"Sheet '{sheet_name}' tidak tersedia untuk kolom kustom."]
+    headers = {str(column).strip() for column in dataframe.columns}
+    missing = [field for field in fields if field not in headers]
+    if not missing:
+        return []
+    return [
+        f"Sheet '{sheet_name}' kekurangan kolom placeholder kustom: "
+        + ", ".join(missing)
+    ]
+
+
+def row_placeholder_replacements(row, fields=None) -> dict:
+    """Build exact token replacements from a dataframe row, including blanks."""
+    keys = fields if fields is not None else row.index
+    return {
+        "{{" + str(key) + "}}": clean_value(row.get(key, ""))
+        for key in keys
+        if re.fullmatch(r"[A-Za-z0-9_]+", str(key))
+    }
+
+
+def extend_input_template(
+    source_path: str, output_path: str, sheet_name: str, custom_fields,
+) -> str:
+    """Copy an XLSX and append custom Text-format columns to *sheet_name*."""
+    import openpyxl
+
+    workbook = openpyxl.load_workbook(source_path)
+    try:
+        if sheet_name not in workbook.sheetnames:
+            raise ValueError(f"Sheet '{sheet_name}' tidak ditemukan.")
+        worksheet = workbook[sheet_name]
+        headers = {
+            str(cell.value).strip(): cell.column
+            for cell in worksheet[1]
+            if cell.value is not None
+        }
+        for field in custom_fields or []:
+            if field in headers:
+                continue
+            column = worksheet.max_column + 1
+            cell = worksheet.cell(row=1, column=column, value=field)
+            if column > 1:
+                source = worksheet.cell(row=1, column=column - 1)
+                cell.font = copy(source.font)
+                cell.fill = copy(source.fill)
+                cell.border = copy(source.border)
+                cell.alignment = copy(source.alignment)
+                cell.protection = copy(source.protection)
+                worksheet.column_dimensions[cell.column_letter].width = max(
+                    worksheet.column_dimensions[source.column_letter].width or 0,
+                    len(field) + 2,
+                )
+            for row_number in range(2, worksheet.max_row + 1):
+                worksheet.cell(row=row_number, column=column).number_format = "@"
+            cell.number_format = "@"
+            headers[field] = column
+        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+        workbook.save(output_path)
+    finally:
+        workbook.close()
+    return output_path
 
 
 def _replace_in_paragraph(para, values: dict):

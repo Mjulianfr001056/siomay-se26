@@ -24,6 +24,7 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from src.document_generator import row_placeholder_replacements, validate_custom_columns
 from docx.shared import Inches, Pt
 from utils.images import (
     HAS_HEIF,
@@ -72,7 +73,7 @@ GRID_MAX_HEIGHT_IN = 4.6
 GRID_GAP_IN        = 0.12
 
 
-def validate_input(file_path: str):
+def validate_input(file_path: str, custom_fields=None):
     """
     Validasi struktur file Excel input BAPP T1 PML.
     Returns (is_valid, errors, dfs) -- dfs = {sheet_name: DataFrame}.
@@ -88,9 +89,11 @@ def validate_input(file_path: str):
             f"Sheet '{SHEET_NAME}' tidak ditemukan. "
             f"Sheet yang tersedia: {', '.join(xl.sheet_names)}"
         )
+        xl.close()
         return False, errors, {}
 
     df = xl.parse(SHEET_NAME, dtype=str)
+    xl.close()
     df.columns = [str(c).strip() for c in df.columns]
     df = df.fillna("")
     dfs[SHEET_NAME] = df
@@ -106,7 +109,9 @@ def validate_input(file_path: str):
         errors.append(f"Sheet '{SHEET_NAME}' kosong.")
         return False, errors, dfs
 
-    return True, [], dfs
+    errors.extend(validate_custom_columns(dfs, SHEET_NAME, custom_fields))
+
+    return not errors, errors, dfs
 
 
 def _norm(v) -> str:
@@ -197,49 +202,62 @@ def replace_text_preserving_runs(doc: Document, replacements: dict) -> None:
             runs = para.runs
             if not runs:
                 continue
-            full_text = ""
-            char_map = []
-            for ri, run in enumerate(runs):
-                for ci, ch in enumerate(run.text):
-                    char_map.append((ri, ci))
-                    full_text += ch
-            matches = list(re.finditer(r"\{\{[^}]+\}\}", full_text))
-            if not matches:
-                continue
-            for m in reversed(matches):
-                ph = m.group(0)
-                if ph not in replacements:
-                    continue
-                val = str(replacements[ph])
-                start, end = m.start(), m.end()
-                touched = []
-                for ci in range(start, min(end, len(char_map))):
-                    ri = char_map[ci][0]
-                    if not touched or touched[-1] != ri:
-                        touched.append(ri)
-                if not touched:
-                    continue
-                first_ri = touched[0]
-                last_ri = touched[-1]
-                first_run_start = next(
-                    i for i, (ri, _) in enumerate(char_map) if ri == first_ri
+            while True:
+                full_text = "".join(run.text for run in runs)
+                match = next(
+                    (
+                        match for match in re.finditer(r"\{\{[^}]+\}\}", full_text)
+                        if match.group(0) in replacements
+                    ),
+                    None,
                 )
-                prefix = full_text[first_run_start:start]
-                last_run_end = (
-                    max(i for i, (ri, _) in enumerate(char_map) if ri == last_ri)
-                    + 1
+                if match is None:
+                    break
+                run_starts = []
+                position = 0
+                for run in runs:
+                    run_starts.append(position)
+                    position += len(run.text)
+                first_ri = max(
+                    i for i, start in enumerate(run_starts)
+                    if start <= match.start()
                 )
-                suffix = full_text[end:last_run_end] if end < last_run_end else ""
-                runs[first_ri].text = prefix + val
+                last_ri = max(
+                    i for i, start in enumerate(run_starts)
+                    if start < match.end()
+                )
+                prefix = runs[first_ri].text[
+                    :match.start() - run_starts[first_ri]
+                ]
+                suffix = runs[last_ri].text[
+                    match.end() - run_starts[last_ri]:
+                ]
+                runs[first_ri].text = (
+                    prefix + str(replacements[match.group(0)]) + suffix
+                )
                 _strip_placeholder_fmt(runs[first_ri])
-                for ri in touched[1:]:
-                    runs[ri].text = suffix if (ri == last_ri and suffix) else ""
+                for ri in range(first_ri + 1, last_ri + 1):
+                    runs[ri].text = ""
 
-    _process_paragraphs(doc.paragraphs)
-    for table in doc.tables:
+    def _process_table(table):
         for row in table.rows:
             for cell in row.cells:
                 _process_paragraphs(cell.paragraphs)
+                for nested_table in cell.tables:
+                    _process_table(nested_table)
+
+    _process_paragraphs(doc.paragraphs)
+    for table in doc.tables:
+        _process_table(table)
+    for section in doc.sections:
+        for story in (
+            section.header, section.footer,
+            section.first_page_header, section.first_page_footer,
+            section.even_page_header, section.even_page_footer,
+        ):
+            _process_paragraphs(story.paragraphs)
+            for table in story.tables:
+                _process_table(table)
 
 
 def _extract_file_id(link: str):
@@ -453,21 +471,22 @@ def iter_generate(dfs: dict, template_path: str, out_dir: str):
         doc = Document(template_path)
 
         # Build replacements from PLACEHOLDER_MAP
-        replacements = {}
+        replacements = row_placeholder_replacements(row)
+        # Preserve the evidence token until insert_gdrive_images processes it.
+        replacements.pop(BUKTI_PLACEHOLDER, None)
         for ph_key, input_col in PLACEHOLDER_MAP.items():
             val = _norm(row.get(input_col, ""))
             replacements["{{" + ph_key + "}}"] = val
 
         replace_text_preserving_runs(doc, replacements)
 
-        # Insert screenshots bukti dukung
-        if link_gd:
-            n_img, img_warnings = insert_gdrive_images(doc, link_gd)
-            if n_img:
-                yield {"t": "log", "level": "INFO",
-                       "msg": f"   {n_img} screenshot disisipkan"}
-            for w in img_warnings:
-                yield {"t": "log", "level": "WARN", "msg": f"   {w}"}
+        # Always process the evidence token so an empty link removes it too.
+        n_img, img_warnings = insert_gdrive_images(doc, link_gd)
+        if n_img:
+            yield {"t": "log", "level": "INFO",
+                   "msg": f"   {n_img} screenshot disisipkan"}
+        for w in img_warnings:
+            yield {"t": "log", "level": "WARN", "msg": f"   {w}"}
 
         # Simpan DOCX
         safe_name = _slug(who)

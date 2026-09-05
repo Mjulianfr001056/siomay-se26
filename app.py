@@ -40,6 +40,8 @@ from src.document_generator import (
     PLACEHOLDER_RE,
     build_values,
     copy_template,
+    custom_template_placeholders,
+    extend_input_template,
     extract_template_placeholders,
     fill_row,
     slugify,
@@ -137,6 +139,8 @@ def main(page: ft.Page):
         "errors": [],
         "template_path": None,       # template docx (step 2)
         "template_source": None,     # "unggahan" (template selalu diunggah user)
+        "builtin_placeholders": set(),
+        "custom_placeholders": [],
         "generated_files": [],       # hasil step 4
         "generation_done": False,
         "gen_duration": None,        # durasi pembuatan dokumen (detik)
@@ -440,6 +444,8 @@ def main(page: ft.Page):
             step1_summary.color = ft.Colors.BLUE_900
         else:
             state["template_path"] = None
+            state["builtin_placeholders"] = set()
+            state["custom_placeholders"] = []
             step1_summary.value = (
                 f"Dipilih: {doc.label} — template bawaan "
                 + (f"tersedia ({doc.template_filename})." if builtin
@@ -549,8 +555,23 @@ def main(page: ft.Page):
         save_path = ensure_extension(save_path, "xlsx")
         try:
             if bundled:
-                # Grup Lampiran SPK → salin template input bawaan apa adanya
-                shutil.copyfile(bundled, save_path)
+                custom = state["custom_placeholders"]
+                if custom and doc and (
+                    doc.id.startswith("bapp_")
+                    or doc.id.startswith("spp_")
+                    or doc.id.startswith("bast_")
+                ):
+                    sheet_name = (
+                        "input" if doc.id.startswith("bapp_") else "data_mitra"
+                    )
+                    extend_input_template(bundled, save_path, sheet_name, custom)
+                    log(
+                        f"Template input ditambah {len(custom)} kolom kustom "
+                        f"pada sheet '{sheet_name}': {save_path}", "OK"
+                    )
+                else:
+                    # Salin template input bawaan apa adanya.
+                    shutil.copyfile(bundled, save_path)
                 log(f"Template input bawaan disimpan: {save_path} "
                     f"(format {doc.group})", "OK")
             elif doc and doc.group == "Bukti Terima":
@@ -984,17 +1005,13 @@ def main(page: ft.Page):
             from docx.text.paragraph import Paragraph
 
             d = Document(path)
-            blocks, placeholders, seen = [], [], set()
+            blocks = []
             for child in d.element.body.iterchildren():
                 tag = child.tag.rsplit("}", 1)[-1]
                 if tag == "p":
                     txt = Paragraph(child, d).text.strip()
                     if txt:
                         blocks.append(txt)
-                        for ph in PLACEHOLDER_RE.findall(txt):
-                            if ph not in seen:
-                                seen.add(ph)
-                                placeholders.append(ph)
                 elif tag == "tbl":
                     t = Table(child, d)
                     blocks.append(
@@ -1006,20 +1023,24 @@ def main(page: ft.Page):
                 f"{os.path.basename(path)} — {n_paras} paragraf, {n_tables} tabel."
             )
             tpl_preview_stats.color = ft.Colors.GREY_700
+            placeholders = sorted(extract_template_placeholders(path))
+            builtin = state["builtin_placeholders"]
             if placeholders:
-                for ph in placeholders[:12]:
+                for ph in placeholders:
+                    is_custom = ph not in builtin
                     tpl_preview_ph_row.controls.append(ft.Container(
                         content=ft.Text(f"{{{{{ph}}}}}", size=11,
-                                        color=ft.Colors.INDIGO_800),
-                        bgcolor=ft.Colors.INDIGO_50,
-                        border=ft.Border.all(1, ft.Colors.INDIGO_100),
+                                        color=(ft.Colors.GREEN_900 if is_custom
+                                               else ft.Colors.INDIGO_800)),
+                        bgcolor=(ft.Colors.GREEN_50 if is_custom
+                                 else ft.Colors.INDIGO_50),
+                        border=ft.Border.all(
+                            1, ft.Colors.GREEN_200 if is_custom
+                            else ft.Colors.INDIGO_100
+                        ),
                         border_radius=6,
                         padding=ft.Padding.only(left=8, right=8, top=3, bottom=3),
                     ))
-                if len(placeholders) > 12:
-                    tpl_preview_ph_row.controls.append(ft.Text(
-                        f"+{len(placeholders) - 12} penanda lainnya",
-                        size=11, color=ft.Colors.GREY_600))
             else:
                 tpl_preview_ph_row.controls.append(ft.Text(
                     "Tidak ada penanda {{kolom}} ditemukan — data tidak akan "
@@ -1081,13 +1102,6 @@ def main(page: ft.Page):
                             f"{{{{{key}}}}}" for key in validation["missing"]
                         )
                     )
-                if validation["unexpected"]:
-                    details.append(
-                        "penanda tidak dikenal: "
-                        + ", ".join(
-                            f"{{{{{key}}}}}" for key in validation["unexpected"]
-                        )
-                    )
                 message = "Template ditolak — " + "; ".join(details) + "."
                 log(message, "WARN")
                 show_snackbar(message, ft.Colors.RED_700)
@@ -1095,11 +1109,21 @@ def main(page: ft.Page):
 
         state["template_path"] = path
         state["template_source"] = "unggahan"
+        state["builtin_placeholders"] = (
+            extract_template_placeholders(doc.builtin_template_path)
+            if doc and doc.builtin_template_path else set()
+        )
+        state["custom_placeholders"] = custom_template_placeholders(
+            path, doc.builtin_template_path if doc else None
+        )
         name = os.path.basename(path)
         tpl_status_chip.value = f"{name}  (unggahan Anda)"
         tpl_status_chip.color = ft.Colors.GREY_900
         log(f"Template dokumen diunggah: {name}", "OK")
         render_template_preview(files[0].path)
+        if state["file_path"]:
+            log("Template berubah; memvalidasi ulang file Excel terpilih.", "INFO")
+            process_data_file(state["file_path"])
         update_nav()
         page.update()
 

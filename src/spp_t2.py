@@ -4,12 +4,11 @@ Termin 2 uses the same three-sheet data model and generation calculations as
 Termin 1. The only schema difference is ``no_urut_spp_t2`` in ``no_spk``;
 its value is written to the matching Word placeholder.
 """
-import re
-
 import pandas as pd
-from docx import Document
 
 from src import spp
+from src.document_generator import extract_template_placeholders
+from src.document_generator import validate_custom_columns
 
 
 SHEET_DATA_MITRA = spp.SHEET_DATA_MITRA
@@ -25,34 +24,14 @@ REQUIRED_SCHEMA = {
     SHEET_ALOKASI: ["nik_ppl", "nik_pml", "target", "capaian", "persentase"],
 }
 
-SUPPORTED_TEMPLATE_FIELDS = {
-    "nik", "nama_lengkap", "no_spk", NUMBER_PLACEHOLDER,
-    "jml_usaha", "jml_usaha_min", "persentase",
-}
-
-
 def _template_fields(template_path: str) -> set[str]:
-    """Return placeholder names, including fields located inside tables."""
-    doc = Document(template_path)
-    text = []
-
-    def visit_table(table):
-        for row in table.rows:
-            for cell in row.cells:
-                text.extend(paragraph.text for paragraph in cell.paragraphs)
-                for nested in cell.tables:
-                    visit_table(nested)
-
-    text.extend(paragraph.text for paragraph in doc.paragraphs)
-    for table in doc.tables:
-        visit_table(table)
-    for section in doc.sections:
-        text.extend(paragraph.text for paragraph in section.header.paragraphs)
-        text.extend(paragraph.text for paragraph in section.footer.paragraphs)
-    return set(re.findall(r"\{\{\s*(\w+)\s*\}\}", "\n".join(text)))
+    """Return placeholders from body, nested tables, headers, and footers."""
+    return extract_template_placeholders(template_path)
 
 
-def validate_input(file_path: str, template_path: str | None = None):
+def validate_input(
+    file_path: str, template_path: str | None = None, custom_fields=None,
+):
     """Validate the Termin 2 three-sheet workbook and template placeholders."""
     errors = []
     dfs = {}
@@ -83,15 +62,10 @@ def validate_input(file_path: str, template_path: str | None = None):
     finally:
         workbook.close()
 
-    if template_path and not errors:
-        unmapped = sorted(
-            _template_fields(template_path) - SUPPORTED_TEMPLATE_FIELDS
+    if not errors:
+        errors.extend(
+            validate_custom_columns(dfs, SHEET_DATA_MITRA, custom_fields)
         )
-        if unmapped:
-            errors.append(
-                "Placeholder template SPP Termin 2 tidak didukung: "
-                + ", ".join(unmapped)
-            )
     return not errors, errors, dfs
 
 

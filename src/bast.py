@@ -37,6 +37,7 @@ from src.bapp_ppl_t2 import (
     insert_gdrive_images,
     _slug,
 )
+from src.document_generator import row_placeholder_replacements, validate_custom_columns
 
 # -- Skema sheet wajib ------------------------------------------------
 REQUIRED_SCHEMA = {
@@ -79,7 +80,7 @@ def _format_no_urut_bast(v) -> str:
 # =====================================================================
 #  Validation
 # =====================================================================
-def validate_input(file_path: str):
+def validate_input(file_path: str, custom_fields=None):
     """Validate the BAST input Excel file.
 
     Returns ``(ok, errors, dfs)`` where *dfs* maps sheet_name -> DataFrame.
@@ -110,11 +111,15 @@ def validate_input(file_path: str):
                     f"Sheet '{sheet_name}' kekurangan kolom: "
                     + ", ".join(missing)
                 )
+    xls.close()
 
     if not errors:
         for sheet_name in REQUIRED_SCHEMA:
             if sheet_name in dfs and len(dfs[sheet_name]) == 0:
                 errors.append(f"Sheet '{sheet_name}' kosong.")
+
+    if not errors:
+        errors.extend(validate_custom_columns(dfs, SHEET_NAME, custom_fields))
 
     return (len(errors) == 0), errors, dfs
 
@@ -415,13 +420,17 @@ def _generate_one_doc(row, kind, df_tugas, df_mitra, kec_map,
                   f"wilayah={len(wilayah_rows)} baris"}
 
     doc = Document(template_path)
-    replacements = {
+    replacements = row_placeholder_replacements(row)
+    # The evidence column is consumed by insert_gdrive_images, not rendered as
+    # its source URL in the DOCX.
+    replacements.pop(BUKTI_PLACEHOLDER, None)
+    replacements.update({
         "{{no_urut_bast}}": no_urut,
         "{{no_spk}}": no_spk_val,
         "{{nama_lengkap}}": nama,
         "{{nik}}": nik,
         "{{jml_sls}}": str(jml_sls),
-    }
+    })
     replace_text_preserving_runs(doc, replacements)
 
     # Populate wilayah kerja table (Table 2)

@@ -23,6 +23,7 @@ from docx import Document
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.table import _Row
+from src.document_generator import row_placeholder_replacements, validate_custom_columns
 
 # -- Skema sheet wajib ------------------------------------------------
 SHEET_DATA_MITRA = "data_mitra"
@@ -56,7 +57,9 @@ LAMPIRAN_COL_WIDTHS = [700, 3200, 1500, 1800, 1500, 0]
 # =====================================================================
 #  Validation
 # =====================================================================
-def validate_input(file_path: str):
+def validate_input(
+    file_path: str, template_path: str | None = None, custom_fields=None,
+):
     """Validate the SPP input Excel file.
 
     Returns ``(ok, errors, dfs)`` where *dfs* maps sheet_name -> DataFrame.
@@ -82,7 +85,12 @@ def validate_input(file_path: str):
             )
         else:
             dfs[sheet_name] = df
+    xls.close()
 
+    if not errors:
+        errors.extend(
+            validate_custom_columns(dfs, SHEET_DATA_MITRA, custom_fields)
+        )
     ok = len(errors) == 0
     return ok, errors, dfs
 
@@ -124,49 +132,62 @@ def replace_text_preserving_runs(doc: Document, replacements: dict) -> None:
             runs = para.runs
             if not runs:
                 continue
-            full_text = ""
-            char_map = []
-            for ri, run in enumerate(runs):
-                for ci, ch in enumerate(run.text):
-                    char_map.append((ri, ci))
-                    full_text += ch
-            matches = list(re.finditer(r"\{\{[^}]+\}\}", full_text))
-            if not matches:
-                continue
-            for m in reversed(matches):
-                ph = m.group(0)
-                if ph not in replacements:
-                    continue
-                val = str(replacements[ph])
-                start, end = m.start(), m.end()
-                touched = []
-                for ci in range(start, min(end, len(char_map))):
-                    ri = char_map[ci][0]
-                    if not touched or touched[-1] != ri:
-                        touched.append(ri)
-                if not touched:
-                    continue
-                first_ri = touched[0]
-                last_ri = touched[-1]
-                first_run_start = next(
-                    i for i, (ri, _) in enumerate(char_map) if ri == first_ri
+            while True:
+                full_text = "".join(run.text for run in runs)
+                match = next(
+                    (
+                        match for match in re.finditer(r"\{\{[^}]+\}\}", full_text)
+                        if match.group(0) in replacements
+                    ),
+                    None,
                 )
-                prefix = full_text[first_run_start:start]
-                last_run_end = (
-                    max(i for i, (ri, _) in enumerate(char_map) if ri == last_ri)
-                    + 1
+                if match is None:
+                    break
+                run_starts = []
+                position = 0
+                for run in runs:
+                    run_starts.append(position)
+                    position += len(run.text)
+                first_ri = max(
+                    i for i, start in enumerate(run_starts)
+                    if start <= match.start()
                 )
-                suffix = full_text[end:last_run_end] if end < last_run_end else ""
-                runs[first_ri].text = prefix + val
+                last_ri = max(
+                    i for i, start in enumerate(run_starts)
+                    if start < match.end()
+                )
+                prefix = runs[first_ri].text[
+                    :match.start() - run_starts[first_ri]
+                ]
+                suffix = runs[last_ri].text[
+                    match.end() - run_starts[last_ri]:
+                ]
+                runs[first_ri].text = (
+                    prefix + str(replacements[match.group(0)]) + suffix
+                )
                 _strip_placeholder_fmt(runs[first_ri])
-                for ri in touched[1:]:
-                    runs[ri].text = suffix if (ri == last_ri and suffix) else ""
+                for ri in range(first_ri + 1, last_ri + 1):
+                    runs[ri].text = ""
 
-    _process_paragraphs(doc.paragraphs)
-    for table in doc.tables:
+    def _process_table(table):
         for row in table.rows:
             for cell in row.cells:
                 _process_paragraphs(cell.paragraphs)
+                for nested_table in cell.tables:
+                    _process_table(nested_table)
+
+    _process_paragraphs(doc.paragraphs)
+    for table in doc.tables:
+        _process_table(table)
+    for section in doc.sections:
+        for story in (
+            section.header, section.footer,
+            section.first_page_header, section.first_page_footer,
+            section.even_page_header, section.even_page_footer,
+        ):
+            _process_paragraphs(story.paragraphs)
+            for table in story.tables:
+                _process_table(table)
 
 
 def _set_cell_text(cell, text):
@@ -371,12 +392,12 @@ def iter_generate(
         if kind == "ppl":
             file_path = _generate_ppl_doc(
                 nik, nama, no_spk_val, no_input, df_alokasi, template_path,
-                number_placeholder,
+                number_placeholder, row,
             )
         else:
             file_path = _generate_pml_doc(
                 nik, nama, no_spk_val, no_input, df_alokasi,
-                name_lookup, template_path, number_placeholder,
+                name_lookup, template_path, number_placeholder, row,
             )
 
         if file_path:
@@ -403,7 +424,7 @@ def iter_generate(
 
 def _generate_ppl_doc(
         nik, nama, no_spk_val, no_input, df_alokasi, template_path,
-        number_placeholder="no_urut_spp_t1"):
+        number_placeholder="no_urut_spp_t1", source_row=None):
     """Generate a single SPP PPL document. Returns output path or None."""
     df_alokasi[COL_NIK_PPL] = df_alokasi[COL_NIK_PPL].str.strip()
 
@@ -427,9 +448,8 @@ def _generate_ppl_doc(
     )
 
     doc = Document(template_path)
-    replace_text_preserving_runs(
-        doc,
-        {
+    replacements = row_placeholder_replacements(source_row) if source_row is not None else {}
+    replacements.update({
             "{{" + number_placeholder + "}}": no_input,
             "{{nama_lengkap}}": nama,
             "{{nik}}": nik,
@@ -437,8 +457,8 @@ def _generate_ppl_doc(
             "{{jml_usaha}}": jml_usaha,
             "{{jml_usaha_min}}": jml_usaha_min,
             "{{persentase}}": persentase,
-        },
-    )
+    })
+    replace_text_preserving_runs(doc, replacements)
 
     tmp_path = tempfile.mktemp(suffix=".docx", prefix="spp_ppl_")
     doc.save(tmp_path)
@@ -447,7 +467,7 @@ def _generate_ppl_doc(
 
 def _generate_pml_doc(
         nik, nama, no_spk_val, no_input, df_alokasi, name_lookup,
-        template_path, number_placeholder="no_urut_spp_t1"):
+        template_path, number_placeholder="no_urut_spp_t1", source_row=None):
     """Generate a single SPP PML document. Returns output path or None."""
     df_alokasi[COL_NIK_PPL] = df_alokasi[COL_NIK_PPL].str.strip()
     df_alokasi[COL_NIK_PML] = df_alokasi[COL_NIK_PML].str.strip()
@@ -481,15 +501,14 @@ def _generate_pml_doc(
         })
 
     doc = Document(template_path)
-    replace_text_preserving_runs(
-        doc,
-        {
+    replacements = row_placeholder_replacements(source_row) if source_row is not None else {}
+    replacements.update({
             "{{" + number_placeholder + "}}": no_input,
             "{{nama_lengkap}}": nama,
             "{{nik}}": nik,
             "{{no_spk}}": no_spk_val,
-        },
-    )
+    })
+    replace_text_preserving_runs(doc, replacements)
 
     # Fill lampiran table (table index 1 in the template)
     if len(doc.tables) > 1:
