@@ -5,7 +5,7 @@
 **SIOMAY** adalah aplikasi desktop Windows untuk membuat dokumen administrasi Sensus Ekonomi 2026 (SE2026) secara massal dari data Microsoft Excel dan template Microsoft Word. Aplikasi memandu pengguna dari pemilihan dokumen hingga penyimpanan hasil, sekaligus memvalidasi input untuk mengurangi kesalahan dan menjaga konsistensi dokumen.
 
 > **Status:** Stable<br>
-> **Versi saat ini:** `v2026.1.8`<br>
+> **Versi saat ini:** `v2026.1.9`<br>
 > **Platform rilis:** Windows x64
 
 ## Daftar Isi
@@ -26,7 +26,7 @@
 ## Fitur Utama
 
 - Alur kerja terpandu dalam lima langkah: pilih dokumen, siapkan template Word, unggah data Excel, generate, dan simpan hasil.
-- 13 jenis/varian dokumen untuk PPL dan PML, termasuk alur terpisah untuk Termin 1 dan Termin 2.
+- 14 jenis/varian dokumen untuk PPL dan PML, termasuk alur terpisah untuk Termin 1 dan Termin 2.
 - Template DOCX dan format input XLSX bawaan yang dapat diunduh langsung dari aplikasi.
 - Validasi struktur workbook, sheet, kolom, relasi data, dan nilai yang diperlukan sesuai jenis dokumen.
 - Validasi template Word sebelum generate, termasuk placeholder yang hilang atau tidak dikenal.
@@ -57,6 +57,7 @@
 | SPP Termin 2 | SPP PML Termin 2 | Alur, template, dan validasi khusus Termin 2 |
 | BAST | BAST PPL | Mengolah data mitra, supervisi, alokasi tugas, dan bukti dukung |
 | BAST | BAST PML | Mengolah data mitra, supervisi, alokasi tugas, dan bukti dukung |
+| SPTD | SPTD | Menghitung total responden dan membuat satu dokumen untuk setiap baris data mitra |
 | Bukti Terima | Bukti Terima Paket Internet | Satu dokumen multi-halaman dengan grid foto 2×2 per halaman A4; tanpa template Word |
 
 Nomor urut BAPP Termin 2 dan BAST yang bersifat numerik diformat menjadi tiga digit, misalnya `1` menjadi `001` dan `21` menjadi `021`. Nilai alfanumerik tetap dipertahankan.

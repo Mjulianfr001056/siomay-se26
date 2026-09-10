@@ -19,6 +19,7 @@ CONVERSION_BENCHMARKS: dict[str, tuple[int, int]] = {
     "spp_t2_ppl": (6, 33),
     "spp_pml": (2, 12),
     "spp_t2_pml": (23, 35),
+    "sptd": (3, 18),
 }
 
 

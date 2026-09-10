@@ -27,6 +27,7 @@ from src import spp
 from src import spp_t2
 from src import bast
 from src import bukti_terima
+from src import sptd
 from src.validator import analyze_nulls
 from src.workflow_routing import validate_document_input
 from src.template_generator import generate_template
@@ -560,6 +561,7 @@ def main(page: ft.Page):
                     doc.id.startswith("bapp_")
                     or doc.id.startswith("spp_")
                     or doc.id.startswith("bast_")
+                    or doc.id == "sptd"
                 ):
                     sheet_name = (
                         "input" if doc.id.startswith("bapp_") else "data_mitra"
@@ -831,6 +833,46 @@ def main(page: ft.Page):
             data_file_chip.color = ft.Colors.GREY_900
             log(f"Data diverifikasi: {name} \u2192 VALID "
                 f"(PPL: {n_ppl_b}, PML: {n_pml_b})", "OK")
+            update_nav()
+            page.update()
+            return
+
+        if doc and doc.id == "sptd":
+            # Ringkasan khusus format SPTD
+            df_sptd = dfs.get(sptd.SHEET_NAME)
+            n_rows = len(df_sptd) if df_sptd is not None else 0
+            n_responden = 0
+            if df_sptd is not None:
+                for _, row in df_sptd.iterrows():
+                    keluarga = sptd._count_value(
+                        row.get("jml_keluarga", ""),
+                        row_number=0,
+                        column="jml_keluarga",
+                    )
+                    usaha = sptd._count_value(
+                        row.get("jml_usaha", ""),
+                        row_number=0,
+                        column="jml_usaha",
+                    )
+                    n_responden += keluarga + usaha
+            verify_area.controls = [
+                ft.Row(
+                    [
+                        stat_box("Total Dokumen", str(n_rows), good=n_rows > 0),
+                        stat_box(
+                            "Total Responden",
+                            sptd._format_decimal(n_responden),
+                            good=True,
+                        ),
+                        stat_box("Sheet", sptd.SHEET_NAME, good=True),
+                    ],
+                    spacing=10,
+                ),
+            ]
+            verify_area.visible = True
+            data_file_chip.value = f"{name} — SPTD"
+            data_file_chip.color = ft.Colors.GREY_900
+            log(f"Data diverifikasi: {name} → VALID ({n_rows} dokumen)", "OK")
             update_nav()
             page.update()
             return
@@ -1499,6 +1541,10 @@ def main(page: ft.Page):
                     if str(v).strip().lower() == doc.kind
                 )
             extra = f" ({n_target} {doc.kind.upper()})"
+        elif doc.id == "sptd":
+            df_sptd = state["dfs"].get(sptd.SHEET_NAME)
+            n_rows = len(df_sptd) if df_sptd is not None else 0
+            extra = f" ({n_rows} dokumen)"
         elif doc.group == "Bukti Terima":
             df_bt = state["dfs"].get(bukti_terima.SHEET_NAME)
             n_rows = len(df_bt) if df_bt is not None else 0
@@ -2026,6 +2072,50 @@ def main(page: ft.Page):
         finally:
             _gen_ui_finish()
 
+    async def generate_sptd():
+        """Populate one SPTD document for each input row."""
+        _gen_ui_start()
+        gen_status.value = "Menyiapkan populasi dokumen SPTD…"
+        page.update()
+
+        out_dir = tempfile.mkdtemp(prefix="gen_sptd_")
+        log("=" * 46, "STEP")
+        log("MEMULAI GENERATE — SPTD", "STEP")
+        log(f"Template : {os.path.basename(state['template_path'])}", "INFO")
+        log(f"Data     : {os.path.basename(state['file_path'])}", "INFO")
+
+        try:
+            for ev in sptd.iter_generate(
+                    state["dfs"], state["template_path"], out_dir):
+                t = ev.get("t")
+                if t == "log":
+                    log(ev["msg"], ev.get("level", "INFO"))
+                elif t == "file":
+                    state["generated_files"].append(ev["path"])
+                elif t == "progress":
+                    total = max(ev.get("total", 1), 1)
+                    gen_progress.max = total
+                    gen_progress.value = ev.get("done", 0) / total
+                    gen_status.value = (
+                        f"Mengisi dokumen {ev.get('done', 0)} dari {total}…")
+                    page.update()
+                    await asyncio.sleep(0)
+                elif t == "done":
+                    state["generated_files"] = list(ev.get("generated", []))
+
+            n_ok = len(state["generated_files"])
+            state["generation_done"] = n_ok > 0
+            gen_progress.value = 1
+            gen_status.value = f"Selesai: {n_ok} dokumen berhasil dibuat."
+            log(f"GENERATE SELESAI — {n_ok} dokumen.",
+                "OK" if n_ok else "ERROR")
+            log(f"Folder output: {out_dir}", "INFO")
+        except Exception as ex:
+            gen_status.value = f"Generasi gagal: {ex}"
+            log(f"Generasi gagal: {ex}", "ERROR")
+        finally:
+            _gen_ui_finish()
+
     async def run_generation(e=None):
         if state["busy"]:
             return
@@ -2066,6 +2156,11 @@ def main(page: ft.Page):
         # ── Jalur khusus: grup BAST ────────────────
         if doc and doc.id in ("bast_ppl", "bast_pml"):
             await generate_bast()
+            return
+
+        # ── Jalur khusus: SPTD ──────────────────────────────
+        if doc and doc.id == "sptd":
+            await generate_sptd()
             return
 
         # ── Jalur khusus: grup Bukti Terima ────────────────

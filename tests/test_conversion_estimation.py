@@ -10,6 +10,7 @@ from utils import (
     estimate_conversion_seconds,
     format_estimated_duration,
 )
+from src.workflow import DOCUMENT_TYPES
 
 
 class ConversionEstimationTests(unittest.TestCase):
@@ -28,7 +29,14 @@ class ConversionEstimationTests(unittest.TestCase):
             "spp_t2_ppl": (6, 33),
             "spp_pml": (2, 12),
             "spp_t2_pml": (23, 35),
+            "sptd": (3, 18),
         })
+
+    def test_every_catalog_document_has_a_conversion_benchmark(self):
+        self.assertEqual(
+            set(CONVERSION_BENCHMARKS),
+            {document.id for document in DOCUMENT_TYPES},
+        )
 
     def test_each_benchmark_receives_twenty_percent_buffer_and_rounds_up(self):
         for document_id, (prior_workload, prior_duration) in CONVERSION_BENCHMARKS.items():
@@ -50,6 +58,10 @@ class ConversionEstimationTests(unittest.TestCase):
         self.assertEqual(conversion_workload("bast_ppl", 12, 27), 12)
         with self.assertRaises(ValueError):
             conversion_workload("bukti_terima", 1)
+
+    def test_sptd_uses_generated_document_count(self):
+        self.assertEqual(conversion_workload("sptd", 3), 3)
+        self.assertEqual(estimate_conversion_seconds("sptd", 3), 22)
 
     def test_estimated_duration_formatting(self):
         self.assertEqual(format_estimated_duration(30), "30 detik")

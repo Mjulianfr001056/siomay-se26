@@ -4,6 +4,22 @@ Semua perubahan penting pada proyek SIOMAY didokumentasikan di berkas ini. Forma
 
 ---
 
+## [v2026.1.9] - 2026-09-10
+
+### Ditambahkan
+- **Dokumen SPTD**: Menambahkan pilihan Surat Pernyataan Tidak Ditemukan beserta template Word dan format input Excel bawaan.
+- **Perhitungan Responden Otomatis**: Nilai `responden` dihitung dari jumlah keluarga ditambah jumlah usaha untuk setiap baris data mitra.
+- **Penggantian Placeholder Aman**: Placeholder SPTD yang terpisah pada beberapa *run* Word diganti tanpa mengubah format teks di sekitarnya; nilai hasil penggantian ditulis dengan warna hitam dan mempertahankan format tebal dari template.
+
+### Diperbaiki
+- Nilai jumlah keluarga atau usaha yang kosong kini dinormalisasi menjadi nol, sedangkan nilai nonnumerik ditolak saat validasi.
+- Menambahkan benchmark konversi SPTD agar hasil dapat disimpan sebagai ZIP PDF atau PDF gabungan tanpa galat `Benchmark konversi tidak tersedia`.
+
+### Keandalan dan Pengujian
+- Menambahkan pengujian validasi input, perhitungan responden, format DOCX, urutan katalog, routing, kelengkapan benchmark konversi, dan generasi tiga dokumen dari aset bawaan.
+
+---
+
 ## [v2026.1.8] - 2026-09-05
 
 ### Ditambahkan

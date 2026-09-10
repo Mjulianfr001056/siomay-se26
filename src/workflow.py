@@ -20,6 +20,7 @@ INPUT_SPP_T1 = os.path.join(INPUT_DIR, "02_input_spp_t1.xlsx")
 INPUT_SPP_T2 = os.path.join(INPUT_DIR, "04_input_spp_t2.xlsx")
 INPUT_BAST = os.path.join(INPUT_DIR, "05_input_bast.xlsx")
 INPUT_BUKTI_TERIMA = os.path.join(INPUT_DIR, "06_input_bukti_terima_paket_internet.xlsx")
+INPUT_SPTD = os.path.join(INPUT_DIR, "07_input_sptd.xlsx")
 
 
 class DocumentType:
@@ -73,6 +74,8 @@ class DocumentType:
             path = INPUT_BAST
         elif self.id == "bukti_terima":
             path = INPUT_BUKTI_TERIMA
+        elif self.id == "sptd":
+            path = INPUT_SPTD
         else:
             path = None
         return path if path and os.path.isfile(path) else None
@@ -138,6 +141,11 @@ DOCUMENT_TYPES = [
         "bast_pml", "BAST PML", "BAST",
         "BAST_PML", "05. Template BAST PML.docx",
         "Berita Acara Serah Terima untuk PML",
+    ),
+    DocumentType(
+        "sptd", "SPTD", "SPTD",
+        "SPTD", "07. Template SPTD.docx",
+        "Surat Pernyataan Responden Tidak Ditemukan",
     ),
     DocumentType(
         "bukti_terima", "Bukti Terima Paket Internet", "Bukti Terima",
