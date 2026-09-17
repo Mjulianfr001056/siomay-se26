@@ -59,8 +59,9 @@ Gunakan `flet build`, bukan `python -m flet`; pada Flet 0.86 CLI tersedia sebaga
 
 Sebelum distribusi luas, beli/siapkan sertifikat code-signing Windows dan tandatangani executable aplikasi. Jangan menandai executable sebagai terverifikasi sebelum proses tersebut tersedia.
 
-Workflow rilis membutuhkan repository/environment variable non-rahasia
-`SIOMAY_DRIVE_FOLDER_WORKER_URL`. Google API key tidak boleh berada di `.env` atau
-GitHub; key tersebut tetap disimpan sebagai secret Cloudflare Worker.
+Workflow rilis menggunakan URL Worker produksi sebagai nilai bawaan. Repository
+variable non-rahasia `SIOMAY_DRIVE_FOLDER_WORKER_URL` dapat digunakan untuk
+mengganti URL tersebut tanpa mengubah workflow. Google API key tidak boleh berada
+di `.env` atau GitHub; key tersebut tetap disimpan sebagai secret Cloudflare Worker.
 
 Pemeriksaan pembaruan saat ini hanya memberi informasi dan membuka halaman GitHub Release. Pembaruan otomatis yang mengganti file aplikasi baru boleh ditambahkan setelah code signing dan verifikasi SHA-256 diterapkan.

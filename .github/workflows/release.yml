@@ -33,7 +33,7 @@ jobs:
         env:
           PYTHONIOENCODING: utf-8
           FLET_CLI_NO_RICH_OUTPUT: "1"
-          SIOMAY_DRIVE_FOLDER_WORKER_URL: ${{ vars.SIOMAY_DRIVE_FOLDER_WORKER_URL }}
+          SIOMAY_DRIVE_FOLDER_WORKER_URL: ${{ vars.SIOMAY_DRIVE_FOLDER_WORKER_URL || 'https://siomay-drive-folder-listing.25julianfirdaus.workers.dev' }}
         run: |
           if ($env:SIOMAY_DRIVE_FOLDER_WORKER_URL -notmatch '^https://[^\s/#?]+(?:/[^\s?#]*)?/?$') {
             throw "Repository/environment variable SIOMAY_DRIVE_FOLDER_WORKER_URL must be a valid HTTPS URL without a query or fragment."
