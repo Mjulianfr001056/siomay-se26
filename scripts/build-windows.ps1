@@ -11,6 +11,16 @@ if (-not (Get-Command flet -ErrorAction SilentlyContinue)) {
     throw "Flet CLI tidak ditemukan. Instal dependensi proyek dengan Python 3.14 terlebih dahulu."
 }
 
+$dotenv = Join-Path $root ".env"
+if (-not (Test-Path $dotenv -PathType Leaf)) {
+    throw "Konfigurasi .env tidak ditemukan. Salin .env.example ke .env dan isi SIOMAY_DRIVE_FOLDER_WORKER_URL."
+}
+$workerUrl = Get-Content $dotenv | Where-Object { $_ -match '^\s*SIOMAY_DRIVE_FOLDER_WORKER_URL\s*=' } | Select-Object -Last 1
+if ($null -eq $workerUrl -or $workerUrl -notmatch '^\s*SIOMAY_DRIVE_FOLDER_WORKER_URL\s*=\s*https://[^\s/#?]+(?:/[^\s?#]*)?/?\s*$') {
+    throw "SIOMAY_DRIVE_FOLDER_WORKER_URL pada .env harus berupa URL HTTPS valid tanpa query atau fragment."
+}
+$workerUrlValue = ($workerUrl -split '=', 2)[1].Trim().TrimEnd('/')
+
 # Fail sebelum build mahal dimulai bila wheel HEIF atau DLL native-nya tidak
 # tersedia pada environment build.
 py -3.14 -c "from utils.images import HAS_HEIF; assert HAS_HEIF, 'pillow-heif/native HEIF codec tidak tersedia'"
@@ -41,6 +51,7 @@ if ($LASTEXITCODE -ne 0) {
 $exe = Get-ChildItem -Path build -Recurse -File -Filter "siomay.exe" | Select-Object -First 1
 if ($null -eq $exe) { throw "siomay.exe tidak ditemukan pada hasil build." }
 $appRoot = $exe.Directory.FullName
+"SIOMAY_DRIVE_FOLDER_WORKER_URL=$workerUrlValue" | Set-Content -Path (Join-Path $appRoot ".env") -Encoding utf8
 $heifModule = Get-ChildItem -Path $appRoot -Recurse -File -Filter "_pillow_heif*.pyd" | Select-Object -First 1
 $heifDll = Get-ChildItem -Path $appRoot -Recurse -File -Filter "libheif*.dll" | Select-Object -First 1
 $decoderDll = Get-ChildItem -Path $appRoot -Recurse -File -Filter "libde265*.dll" | Select-Object -First 1

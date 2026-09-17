@@ -165,9 +165,13 @@ def row_placeholder_replacements(row, fields=None) -> dict:
 
 
 def _is_http_url(value: str) -> bool:
-    """Return whether *value* is one complete HTTP(S) URL."""
-    parsed = urlparse(value)
-    return parsed.scheme.lower() in {"http", "https"} and bool(parsed.netloc)
+    """Return whether *value* is one or more complete HTTP(S) URLs."""
+    parts = [part.strip() for part in str(value or "").split(",") if part.strip()]
+    return bool(parts) and all(
+        (parsed := urlparse(part)).scheme.lower() in {"http", "https"}
+        and bool(parsed.netloc)
+        for part in parts
+    )
 
 
 def _remove_token_from_paragraph(paragraph, token) -> int:
@@ -215,9 +219,7 @@ def insert_custom_url_images(doc, row, builtin_fields=(), *,
     if row is None:
         return set()
     from utils.evidence import insert_evidence_items
-    from utils.images import (
-        download_url_evidence,
-    )
+    from utils.images import download_url_evidence_collection
 
     builtin = {str(field) for field in builtin_fields}
     paragraphs = list(_iter_paragraphs(doc))
@@ -233,7 +235,7 @@ def insert_custom_url_images(doc, row, builtin_fields=(), *,
             continue
         try:
             if downloader is None:
-                items = download_url_evidence(value)
+                items = download_url_evidence_collection(value)
             else:
                 # Preserve the injectable legacy downloader contract used by
                 # callers/tests: ``(PNG stream, open PIL image)``.

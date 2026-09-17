@@ -2,14 +2,26 @@
 
 import unittest
 from unittest.mock import Mock, patch
+from pathlib import Path
+import tomllib
 
 import requests
 
-from src.release import is_newer_package_version
+from src.release import DISPLAY_VERSION, PACKAGE_VERSION, is_newer_package_version
 from src.updates import check_for_update, fetch_release_changelog, parse_update_manifest
 
 
 class ReleaseVersionTests(unittest.TestCase):
+    def test_runtime_and_project_release_versions_match(self):
+        project_path = Path(__file__).resolve().parents[1] / "pyproject.toml"
+        with project_path.open("rb") as project_file:
+            project = tomllib.load(project_file)
+
+        release = project["tool"]["siomay"]["release"]
+        self.assertEqual(project["project"]["version"], PACKAGE_VERSION)
+        self.assertEqual(release["package-version"], PACKAGE_VERSION)
+        self.assertEqual(release["display-version"], DISPLAY_VERSION)
+
     def test_only_newer_numeric_package_versions_are_accepted(self):
         self.assertFalse(is_newer_package_version("2026.1.4"))
         self.assertFalse(is_newer_package_version("2026.1.2.1.0.2"))

@@ -308,6 +308,31 @@ class BappTermin2ImageLayoutTests(unittest.TestCase):
                     len(doc.element.body.xpath('.//w:br[@w:type="page"]')), 1
                 )
 
+    def test_folder_url_is_expanded_before_images_are_downloaded(self):
+        folder_url = "https://drive.google.com/drive/folders/folder-123"
+        references = [
+            ("image-2", "image2.jpg"),
+            ("image-10", "image10.jpg"),
+        ]
+        for module in MODULES:
+            with self.subTest(module=module.__name__):
+                doc, _, _ = _document_with_placeholder(module)
+                with patch(
+                    "utils.images.resolve_drive_inputs",
+                    return_value=(references, []),
+                ) as resolver, patch.object(
+                    module, "_download_drive_evidence", side_effect=_evidence_image
+                ) as downloader:
+                    count, warnings = module.insert_gdrive_images(doc, folder_url)
+
+                resolver.assert_called_once_with(folder_url)
+                self.assertEqual(
+                    [call.args[0] for call in downloader.call_args_list],
+                    ["image-2", "image-10"],
+                )
+                self.assertEqual(count, 2)
+                self.assertEqual(warnings, [])
+
     def test_pdf_pages_are_dedicated_then_images_resume_selected_grid(self):
         links = ",".join(
             f"https://drive.google.com/file/d/file-{number}/view"

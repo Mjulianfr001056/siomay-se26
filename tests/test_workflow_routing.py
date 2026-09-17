@@ -17,6 +17,7 @@ from src import (
     lampiran_spk,
     spp,
     spp_t2,
+    sptd,
 )
 from src.workflow import DOCUMENT_TYPES, get_document_by_id
 from src.workflow_routing import (
@@ -45,6 +46,7 @@ class WorkflowRoutingTests(unittest.TestCase):
         "bast_ppl": bast.iter_generate,
         "bast_pml": bast.iter_generate,
         "bukti_terima": bukti_terima.iter_generate,
+        "sptd": sptd.iter_generate,
     }
 
     def test_every_catalog_document_has_validator_generator_and_assets(self):
@@ -73,6 +75,11 @@ class WorkflowRoutingTests(unittest.TestCase):
                 )
                 self.assertTrue(ok, errors)
                 self.assertTrue(dfs)
+
+    def test_sptd_is_after_bast_and_before_bukti_terima(self):
+        document_ids = [document.id for document in DOCUMENT_TYPES]
+        self.assertLess(document_ids.index("bast_pml"), document_ids.index("sptd"))
+        self.assertLess(document_ids.index("sptd"), document_ids.index("bukti_terima"))
 
     def test_termin_1_workbook_reports_termin_2_specific_column(self):
         termin_1 = get_document_by_id("spp_ppl")

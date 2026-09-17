@@ -9,6 +9,8 @@ from urllib.parse import urlparse
 
 import requests
 
+from utils.config import get_config
+
 try:
     import pymupdf as fitz
 
@@ -38,6 +40,7 @@ except (ImportError, OSError) as exc:  # OSError: codec native gagal dimuat
 
 _DRIVE_DOWNLOAD_URL = "https://drive.google.com/uc"
 _DRIVE_DIRECT_URL = "https://drive.usercontent.google.com/download"
+DRIVE_FOLDER_WORKER_ENV = "SIOMAY_DRIVE_FOLDER_WORKER_URL"
 MAX_WEB_IMAGE_BYTES = 25 * 1024 * 1024
 
 
@@ -54,6 +57,108 @@ def extract_drive_file_id(link: str):
         if match:
             return match.group(1)
     return None
+
+
+def extract_drive_folder_id(link: str):
+    """Extract a folder ID from common Google Drive folder URLs."""
+    value = str(link or "").strip()
+    match = re.search(r"/folders/([^/?#]+)", value)
+    return match.group(1) if match else None
+
+
+def list_drive_folder_images(
+    folder_id: str,
+    *,
+    timeout: float = 30,
+    requester=None,
+    worker_url: str = None,
+):
+    """List images in a public Drive folder through SIOMAY's secure Worker.
+
+    The Google API key remains in Cloudflare; the desktop sends only a folder
+    ID. Direct image downloads continue to use Google's public download URL.
+    """
+    endpoint = str(
+        worker_url
+        or get_config(DRIVE_FOLDER_WORKER_ENV)
+    ).strip().rstrip("/")
+    if not endpoint:
+        raise RuntimeError(
+            "Layanan folder Google Drive belum dikonfigurasi oleh pengelola SIOMAY."
+        )
+    parsed = urlparse(endpoint)
+    if parsed.scheme != "https" or not parsed.hostname or parsed.query or parsed.fragment:
+        raise RuntimeError("Alamat layanan folder Google Drive tidak aman atau tidak valid.")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{10,200}", str(folder_id or "")):
+        raise RuntimeError("ID folder Google Drive tidak valid.")
+
+    request = requester or requests.get
+    url = f"{endpoint}/v1/drive/folders/{folder_id}/images"
+    try:
+        response = request(url, timeout=timeout)
+        response.raise_for_status()
+        payload = response.json()
+    except Exception as exc:
+        status = getattr(locals().get("response"), "status_code", None)
+        if status == 404:
+            detail = "folder tidak ditemukan atau tidak dapat diakses publik"
+        elif status == 429:
+            detail = "terlalu banyak permintaan; coba lagi nanti"
+        elif status in (502, 503, 504):
+            detail = "layanan folder sedang tidak tersedia"
+        else:
+            detail = "tidak dapat menghubungi layanan folder"
+        raise RuntimeError(f"Gagal membaca folder Drive {folder_id}: {detail}") from exc
+
+    files = payload.get("files") if isinstance(payload, dict) else None
+    if not isinstance(files, list) or len(files) > 2000:
+        raise RuntimeError("Respons layanan folder Google Drive tidak valid.")
+    if not all(
+        isinstance(item, dict)
+        and re.fullmatch(r"[A-Za-z0-9_-]{10,200}", str(item.get("id", "")))
+        and isinstance(item.get("name"), str)
+        and len(item["name"]) <= 1000
+        and str(item.get("mimeType", "")).startswith("image/")
+        for item in files
+    ):
+        raise RuntimeError("Respons layanan folder Google Drive tidak valid.")
+    return files
+
+
+def resolve_drive_inputs(value: str, *, folder_lister=None):
+    """Expand comma-separated Drive file/folder URLs into ordered file IDs.
+
+    Returns ``(references, warnings)``. Each reference is ``(file_id, label)``;
+    explicit file links use their ID as the label, while folder entries use the
+    Drive filename. Input order is retained and each folder is naturally sorted.
+    """
+    references = []
+    warnings = []
+    list_folder = folder_lister or list_drive_folder_images
+
+    for link in (part.strip() for part in str(value or "").split(",")):
+        if not link:
+            continue
+        folder_id = extract_drive_folder_id(link)
+        if folder_id:
+            try:
+                folder_files = list_folder(folder_id)
+                if not folder_files:
+                    warnings.append(f"Folder {folder_id} tidak berisi gambar.")
+                references.extend(
+                    (item["id"], item.get("name", item["id"]))
+                    for item in folder_files
+                )
+            except Exception as exc:
+                warnings.append(str(exc))
+            continue
+
+        file_id = extract_drive_file_id(link)
+        if file_id:
+            references.append((file_id, file_id))
+        else:
+            warnings.append("Tautan tidak dikenali: " + link)
+    return references, warnings
 
 
 def _looks_like_html(raw_bytes: bytes, content_type: str = "") -> bool:
@@ -291,6 +396,37 @@ def download_url_evidence(url: str, *, timeout: float = 15,
     finally:
         image.close()
     return [("image", stream, size)]
+
+
+def download_url_evidence_collection(url: str, *, timeout: float = 15):
+    """Download evidence, expanding Drive file/folder collections.
+
+    One ordinary web URL preserves :func:`download_url_evidence` behavior.
+    Comma-separated Drive values may mix explicit files and folders; folder
+    entries contribute all directly contained images in natural filename order.
+    """
+    parts = [part.strip() for part in str(url or "").split(",") if part.strip()]
+    is_drive_collection = parts and all(
+        (urlparse(part).hostname or "").lower().endswith("drive.google.com")
+        and (extract_drive_file_id(part) or extract_drive_folder_id(part))
+        for part in parts
+    )
+    if not is_drive_collection or (
+        len(parts) == 1 and not extract_drive_folder_id(parts[0])
+    ):
+        return download_url_evidence(url, timeout=timeout)
+
+    references, warnings = resolve_drive_inputs(url)
+    if warnings and not references:
+        raise RuntimeError("; ".join(warnings))
+    items = []
+    for file_id, _label in references:
+        downloaded = download_drive_evidence(file_id, timeout=timeout)
+        items.extend(downloaded)
+    if not items:
+        detail = "; ".join(warnings) or "Tidak ada gambar yang dapat dimuat."
+        raise RuntimeError(detail)
+    return items
 
 
 def download_drive_evidence(

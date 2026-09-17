@@ -4,7 +4,7 @@ import os
 import io
 import tempfile
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from docx import Document
 from PIL import Image
@@ -260,6 +260,26 @@ class TemplatePlaceholderValidationTests(unittest.TestCase):
 
         self.assertEqual(consumed, set())
         downloader.assert_not_called()
+
+    def test_custom_drive_folder_uses_collection_downloader(self):
+        document = Document()
+        document.add_paragraph("{{photo_custom}}")
+        stream = io.BytesIO()
+        Image.new("RGB", (100, 60), color="navy").save(stream, format="PNG")
+        stream.seek(0)
+        folder_url = "https://drive.google.com/drive/folders/folder-123"
+
+        with patch(
+            "utils.images.download_url_evidence_collection",
+            return_value=[("image", stream, (100, 60))],
+        ) as downloader:
+            consumed = insert_custom_url_images(
+                document, pd.Series({"photo_custom": folder_url})
+            )
+
+        self.assertEqual(consumed, {"{{photo_custom}}"})
+        downloader.assert_called_once_with(folder_url)
+        self.assertEqual(len(document.inline_shapes), 1)
 
     def test_extends_copy_with_text_format_without_modifying_source(self):
         with tempfile.TemporaryDirectory() as directory:

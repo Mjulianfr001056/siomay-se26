@@ -242,7 +242,8 @@ def insert_evidence_items(doc, target, items, image_layout,
 
 def insert_evidence(doc, links_str, placeholder, image_layout, extract_file_id,
                     replace_text, evidence_downloader,
-                    image_orientation=IMAGE_ORIENTATION_PORTRAIT):
+                    image_orientation=IMAGE_ORIENTATION_PORTRAIT,
+                    input_resolver=None):
     """Insert ordered images/PDF pages; PDF pages are always dedicated pages."""
     if image_layout not in IMAGE_LAYOUTS:
         raise ValueError(f"Mode tata letak gambar tidak dikenal: {image_layout}")
@@ -257,25 +258,24 @@ def insert_evidence(doc, links_str, placeholder, image_layout, extract_file_id,
     if not links_str or not str(links_str).strip():
         return 0, []
 
-    warnings = []
+    if input_resolver is None:
+        from utils.images import resolve_drive_inputs
+
+        input_resolver = resolve_drive_inputs
+
+    references, warnings = input_resolver(links_str)
     items = []
-    for link in (value.strip() for value in str(links_str).split(",")):
-        if not link:
-            continue
-        file_id = extract_file_id(link)
-        if not file_id:
-            warnings.append("Tautan tidak dikenali: " + link)
-            continue
+    for file_id, label in references:
         try:
             items.extend(evidence_downloader(file_id))
         except Exception as exc:
             message = str(exc)
             if "403" in message or "forbidden" in message.lower():
-                warnings.append(f"Akses ditolak (403) untuk {file_id}")
+                warnings.append(f"Akses ditolak (403) untuk {label}")
             elif "404" in message:
-                warnings.append(f"File {file_id} tidak ditemukan")
+                warnings.append(f"File {label} tidak ditemukan")
             else:
-                warnings.append(f"Gagal memuat {file_id}: {message}")
+                warnings.append(f"Gagal memuat {label}: {message}")
 
     if not items:
         return 0, warnings

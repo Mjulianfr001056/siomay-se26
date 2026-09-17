@@ -13,6 +13,7 @@ from src import (
     lampiran_spk,
     spp,
     spp_t2,
+    sptd,
 )
 from src.document_generator import (
     custom_template_placeholders,
@@ -33,6 +34,7 @@ INPUT_VALIDATORS = {
     "bast_ppl": bast.validate_input,
     "bast_pml": bast.validate_input,
     "bukti_terima": bukti_terima.validate_input,
+    "sptd": sptd.validate_input,
 }
 
 
@@ -50,6 +52,7 @@ DOCUMENT_GENERATORS = {
     "bast_ppl": bast.iter_generate,
     "bast_pml": bast.iter_generate,
     "bukti_terima": bukti_terima.iter_generate,
+    "sptd": sptd.iter_generate,
 }
 
 
@@ -75,7 +78,8 @@ def validate_document_input(document, file_path: str, template_path: str | None 
     custom_sheet = None
     if document.id.startswith("bapp_"):
         custom_sheet = "input"
-    elif document.id.startswith("spp_") or document.id.startswith("bast_"):
+    elif (document.id.startswith("spp_") or document.id.startswith("bast_")
+          or document.id == "sptd"):
         custom_sheet = "data_mitra"
     custom = []
     if custom_sheet and template_path and document.builtin_template_path:

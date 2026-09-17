@@ -23,6 +23,7 @@ Gunakan versi display untuk Git tag dan judul GitHub Release. Gunakan package ve
 - Visual Studio 2022 atau 2026 dengan workload **Desktop development with C++**.
 - Windows Developer Mode bila build memberi pesan bahwa symlink diperlukan.
 - Dependensi proyek terinstal dari `pyproject.toml`.
+- `.env` telah dibuat dari `.env.example` dan berisi URL HTTPS Worker produksi.
 
 Flet membundel Python pada hasil build; pengguna akhir tidak perlu memasang Python.
 Setelah dependency proyek berubah, jalankan kembali `py -3.14 -m pip install .`;
@@ -57,5 +58,9 @@ Gunakan `flet build`, bukan `python -m flet`; pada Flet 0.86 CLI tersedia sebaga
 ## Keamanan
 
 Sebelum distribusi luas, beli/siapkan sertifikat code-signing Windows dan tandatangani executable aplikasi. Jangan menandai executable sebagai terverifikasi sebelum proses tersebut tersedia.
+
+Workflow rilis membutuhkan repository/environment variable non-rahasia
+`SIOMAY_DRIVE_FOLDER_WORKER_URL`. Google API key tidak boleh berada di `.env` atau
+GitHub; key tersebut tetap disimpan sebagai secret Cloudflare Worker.
 
 Pemeriksaan pembaruan saat ini hanya memberi informasi dan membuka halaman GitHub Release. Pembaruan otomatis yang mengganti file aplikasi baru boleh ditambahkan setelah code signing dan verifikasi SHA-256 diterapkan.

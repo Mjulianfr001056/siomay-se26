@@ -17,11 +17,23 @@ __pycache__/
 venv/
 env/
 
+# ===== Local configuration =====
+/.env
+/.env.*
+!/.env.example
+
 # ===== Build / distribution =====
 build/
 dist/
 *.egg-info/
 .flet/
+
+# ===== Cloudflare Worker =====
+/worker/node_modules/
+/worker/.wrangler/
+/worker/.dev.vars
+/worker/.env*
+/worker/coverage/
 
 # ===== LibreOffice (dev-only local bundle — bundled by CI for releases) =====
 /LibreOffice/
