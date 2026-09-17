@@ -32,7 +32,7 @@
 - Validasi template Word sebelum generate, termasuk placeholder yang hilang atau tidak dikenal.
 - Penggantian placeholder `{{nama_kolom}}` pada paragraf, tabel, header, dan footer, termasuk placeholder yang terpecah menjadi beberapa *run* Word.
 - Placeholder kustom tanpa batas pada template Word; kolom pasangannya ditambahkan otomatis ke template Excel yang diunduh.
-- Nilai placeholder kustom dapat berupa teks, tautan gambar, atau tautan PDF dari Google Drive; gambar juga dapat berasal dari URL HTTP(S) langsung.
+- Nilai placeholder kustom dapat berupa teks, tautan gambar/PDF Google Drive, atau folder publik Google Drive; gambar juga dapat berasal dari URL HTTP(S) langsung.
 - Pembuatan DOCX massal dengan log proses, progres, timer aktif, serta ringkasan durasi.
 - Pengunduhan dan penyisipan bukti dukung dari Google Drive dalam format JPEG, PNG, HEIC, HEIF, atau PDF.
 - Koreksi orientasi foto berdasarkan metadata EXIF dan konversi HEIC/HEIF otomatis agar dapat dimasukkan ke DOCX.
@@ -141,11 +141,12 @@ Alur BAPP, BAST, dan Bukti Terima dapat menggunakan tautan Google Drive untuk me
 
 - Atur akses file menjadi **Anyone with the link / Siapa saja yang memiliki tautan**.
 - Jika file berasal dari folder unggahan Google Forms, pastikan folder tersebut juga dapat diakses melalui tautan.
-- Gunakan tautan file Google Drive yang valid; beberapa tautan dapat dipisahkan dengan koma pada kolom yang mendukung banyak gambar.
+- Gunakan tautan file Google Drive yang valid; beberapa tautan dapat dipisahkan dengan koma pada kolom yang mendukung banyak gambar. Nilai juga dapat berupa tautan folder `https://drive.google.com/drive/folders/...`; semua gambar yang langsung berada di folder tersebut disisipkan menurut urutan alami nama file. Subfolder dan file non-gambar dilewati.
+- Daftar isi folder publik dibaca melalui layanan aman SIOMAY. Pengguna tidak perlu membuat atau menyimpan Google API key; kunci layanan tidak pernah dikirim ke aplikasi desktop. Tautan file biasa tetap diunduh langsung dari Google Drive.
 - Format JPEG, PNG, HEIC, HEIF, dan PDF didukung pada BAPP Termin 2 dan BAST.
   Setiap halaman PDF dirender dan disisipkan sebagai halaman khusus. Orientasi
   EXIF pada gambar diterapkan otomatis.
-- Pada kolom placeholder kustom, gunakan satu URL lengkap per sel. PDF kustom didukung melalui tautan Google Drive, sedangkan URL web selain Google Drive harus mengarah ke gambar yang valid.
+- Pada kolom placeholder kustom, gunakan satu URL lengkap, kumpulan tautan file Drive yang dipisahkan koma, atau satu tautan folder Drive per sel. PDF kustom didukung melalui tautan file Google Drive, sedangkan URL web selain Google Drive harus mengarah ke gambar yang valid.
 - Jika nilai kustom bukan URL, nilainya dimasukkan sebagai teks. Jika pengunduhan atau validasi URL gagal, URL asli tetap dimasukkan sebagai teks agar informasi tidak hilang.
 - Respons HTML, file kosong, dan gambar rusak/tidak dikenal dilaporkan sebagai peringatan tanpa harus menggagalkan seluruh batch.
 
@@ -176,7 +177,7 @@ Setelah mengunduh versi baru, ekstrak paket ke folder baru dan pertahankan selur
 
 - Workbook Excel, template Word, dan dokumen hasil diproses secara lokal di komputer pengguna.
 - Aplikasi tidak mengunggah data input atau hasil generate sebagai bagian dari proses pembuatan dokumen.
-- Koneksi keluar digunakan untuk mengambil gambar dari tautan yang dimasukkan pengguna dan untuk mengambil metadata pembaruan.
+- Koneksi keluar digunakan untuk mengambil gambar dari tautan yang dimasukkan pengguna, mengambil metadata pembaruan, dan mengirim ID folder Drive publik ke layanan daftar folder SIOMAY. Layanan tersebut hanya mengembalikan metadata file gambar (ID, nama, dan MIME type); workbook, dokumen hasil, serta isi gambar tidak dikirim melalui layanan.
 - Hasil disimpan hanya ke lokasi yang dipilih pengguna.
 - Jangan membagikan workbook, hasil dokumen, log, atau tangkapan layar yang mengandung NIK, nomor telepon, maupun data pribadi lain melalui kanal publik.
 
@@ -218,6 +219,7 @@ Punya kendala atau saran pengembangan? Kirimkan umpan balik Anda melalui form be
 - PyMuPDF
 - requests dan certifi
 - LibreOffice sebagai runtime native untuk konversi PDF
+- Cloudflare Worker (TypeScript) untuk daftar isi folder Google Drive publik
 
 ### Menjalankan dari kode sumber
 
@@ -230,6 +232,8 @@ py -3.14 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install .
+Copy-Item .env.example .env
+# Edit .env dan isi SIOMAY_DRIVE_FOLDER_WORKER_URL dengan URL Worker produksi.
 python app.py
 ```
 
@@ -246,6 +250,11 @@ Unduhan LibreOffice berukuran sekitar 340 MB. Skrip memeriksa kegagalan HTTP, uk
 ```powershell
 python -m compileall -q app.py src utils
 python -m unittest discover -s tests -v
+cd worker
+npm ci
+npm test
+npm run typecheck
+npm run deploy:dry-run
 ```
 
 Suite pengujian mencakup generator dokumen, pemisahan routing workflow, placeholder DOCX bawaan dan kustom, penyisipan gambar/PDF dari URL, gambar JPEG/PNG/HEIC, tata letak serta orientasi bukti, konversi PDF batch, estimasi konversi, pembaruan/rilis, dan helper UI.
@@ -256,6 +265,7 @@ Build membutuhkan Visual Studio dengan workload **Desktop development with C++**
 
 ```powershell
 py -3.14 -m pip install .
+# Pastikan .env berisi SIOMAY_DRIVE_FOLDER_WORKER_URL produksi.
 .\scripts\build-windows.ps1
 ```
 
@@ -273,6 +283,7 @@ Detail proses publikasi, runtime Flet, isi paket, checksum, dan kanal pembaruan 
 app.py          Entrypoint dan antarmuka wizard Flet
 src/            Katalog workflow, validator, dan generator dokumen
 utils/          Utilitas file, gambar, PDF, estimasi, dan UI
+worker/         Cloudflare Worker untuk metadata folder Drive publik
 template/       Template DOCX bawaan
 input/          Template/formats input XLSX bawaan
 tests/          Unit test dan regression test

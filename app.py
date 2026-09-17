@@ -1376,13 +1376,13 @@ def main(page: ft.Page):
                 ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED,
                         color=ft.Colors.AMBER_800, size=20),
                 ft.Text(
-                    "PENTING: Pastikan tautan file Google Drive bukti dukung "
-                    "(gambar/PDF) memiliki akses "
+                    "PENTING: Nilai bukti dapat berupa tautan file yang "
+                    "dipisahkan koma atau satu tautan folder Google Drive. "
+                    "Pastikan file/folder memiliki akses "
                     "\"Anyone with the link\" "
                     "(Siapa saja yang memiliki tautan). "
-                    "Jika tautan dikumpulkan dalam folder dari "
-                    "Google Forms (gForm), pastikan folder tersebut "
-                    "juga diatur \"Anyone with the link\".",
+                    "Daftar isi folder dibaca melalui layanan aman SIOMAY; "
+                    "pengguna tidak perlu menyiapkan Google API key.",
                     size=12, color=ft.Colors.AMBER_900, expand=True,
                 ),
             ],

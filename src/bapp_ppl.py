@@ -35,6 +35,7 @@ from utils.images import (
     HAS_PIL,
     download_drive_image as _download_drive_image,
 )
+from utils.evidence import IMAGE_LAYOUT_GRID, insert_evidence as _insert_evidence
 
 
 # -- Skema input Excel ------------------------------------------------
@@ -320,98 +321,19 @@ def _fit_box(img_w: int, img_h: int, box_w: float, box_h: float):
 
 def insert_gdrive_images(doc: Document, links_str: str,
                          placeholder: str = None):
-    """
-    Sisipkan 1-5 screenshot bukti dukung sebagai GRID di lokasi
-    paragraf yang mengandung {{bukti_dukung}}.
-    Returns (jumlah_gambar, daftar_peringatan).
-    """
-    if placeholder is None:
-        placeholder = BUKTI_PLACEHOLDER
-    warnings_list = []
-
-    # Simpan paragraf jangkar sebelum token dibersihkan. Helper penggantian
-    # mendukung placeholder yang dipecah Word ke beberapa run.
-    target_p = next((p for p in doc.paragraphs if placeholder in p.text), None)
-    if target_p is None:
-        return 0, ["Template tidak memiliki placeholder " + placeholder]
-    replace_text_preserving_runs(doc, {placeholder: ""})
-
-    if not HAS_PIL:
-        warnings_list.append("Pillow tidak terinstal - screenshot dilewati.")
-        return 0, warnings_list
-
-    if not links_str or not str(links_str).strip():
-        return 0, []
-
-    links = [l.strip() for l in str(links_str).split(",") if l.strip()][:5]
-    if len(str(links_str).split(",")) > 5:
-        warnings_list.append("Hanya 5 tautan pertama yang dipakai")
-
-    # Unduh semua gambar
-    images = []
-    for link in links:
-        file_id = _extract_file_id(link)
-        if not file_id:
-            warnings_list.append("Tautan tidak dikenali: " + link)
-            continue
+    """Insert every resolved Drive image in paginated groups of five."""
+    def evidence_downloader(file_id):
+        stream, image = _download_drive_image(file_id)
         try:
-            fh, img = _download_drive_image(file_id)
-            images.append((fh, img))
-        except Exception as e:
-            msg = str(e)
-            if "403" in msg or "forbidden" in msg.lower():
-                warnings_list.append(f"Akses ditolak (403) untuk {file_id}")
-            elif "404" in msg:
-                warnings_list.append(f"File {file_id} tidak ditemukan")
-            else:
-                warnings_list.append(f"Gagal memuat {file_id}: {msg}")
+            size = image.size
+        finally:
+            image.close()
+        return [("image", stream, size)]
 
-    n = len(images)
-    if n == 0:
-        return 0, warnings_list
-
-    layout = GRID_LAYOUTS.get(n, [3] * ((n + 2) // 3))
-    num_rows = len(layout)
-    row_h = (GRID_MAX_HEIGHT_IN - GRID_GAP_IN * (num_rows - 1)) / num_rows
-    anchor = target_p._p
-    img_idx = 0
-
-    for cols in layout:
-        col_w = (GRID_MAX_WIDTH_IN - GRID_GAP_IN * (cols - 1)) / cols
-        row_table = doc.add_table(rows=1, cols=cols)
-        row_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-        row_table.autofit = False
-        _remove_table_borders(row_table)
-
-        for c in range(cols):
-            cell = row_table.rows[0].cells[c]
-            _set_cell_width(cell, col_w)
-            tcPr = cell._tc.get_or_add_tcPr()
-            tcMar = OxmlElement("w:tcMar")
-            for side in ("top", "left", "bottom", "right"):
-                node = OxmlElement(f"w:{side}")
-                node.set(qn("w:w"), "60")
-                node.set(qn("w:type"), "dxa")
-                tcMar.append(node)
-            tcPr.append(tcMar)
-            cell_p = cell.paragraphs[0]
-            cell_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            cell_p.paragraph_format.space_before = Pt(0)
-            cell_p.paragraph_format.space_after = Pt(0)
-            if img_idx < n:
-                fh, img = images[img_idx]
-                img_w, img_h = img.size
-                target_w, target_h = _fit_box(img_w, img_h, col_w, row_h)
-                fh.seek(0)
-                run = cell_p.add_run()
-                run.add_picture(fh, width=Inches(target_w),
-                                height=Inches(target_h))
-                img_idx += 1
-
-        anchor.addnext(row_table._tbl)
-        anchor = row_table._tbl
-
-    return img_idx, warnings_list
+    return _insert_evidence(
+        doc, links_str, placeholder or BUKTI_PLACEHOLDER, IMAGE_LAYOUT_GRID,
+        _extract_file_id, replace_text_preserving_runs, evidence_downloader,
+    )
 
 
 def _slug(name: str) -> str:

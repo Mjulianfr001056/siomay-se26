@@ -33,7 +33,11 @@ jobs:
         env:
           PYTHONIOENCODING: utf-8
           FLET_CLI_NO_RICH_OUTPUT: "1"
+          SIOMAY_DRIVE_FOLDER_WORKER_URL: ${{ vars.SIOMAY_DRIVE_FOLDER_WORKER_URL }}
         run: |
+          if ($env:SIOMAY_DRIVE_FOLDER_WORKER_URL -notmatch '^https://[^\s/#?]+(?:/[^\s?#]*)?/?$') {
+            throw "Repository/environment variable SIOMAY_DRIVE_FOLDER_WORKER_URL must be a valid HTTPS URL without a query or fragment."
+          }
           $tag = "${{ github.ref_name }}"
           $version = $tag.TrimStart("v")
           $channel = if ($tag.Contains("-")) { "beta" } else { "stable" }
@@ -45,6 +49,7 @@ jobs:
             $buildVersion = $version
           }
           git clone --local . release-source
+          "SIOMAY_DRIVE_FOLDER_WORKER_URL=$($env:SIOMAY_DRIVE_FOLDER_WORKER_URL.TrimEnd('/'))" | Set-Content -Path release-source/.env -Encoding utf8
           (Get-Content release-source/src/release.py) `
             -replace 'DISPLAY_VERSION = ".*"', "DISPLAY_VERSION = `"v$version`"" `
             -replace 'PACKAGE_VERSION = ".*"', "PACKAGE_VERSION = `"$buildVersion`"" `
@@ -116,6 +121,7 @@ jobs:
           $exe = Get-ChildItem -Path build -Recurse -File -Filter "SIOMAY.exe" | Select-Object -First 1
           if ($null -eq $exe) { throw "Could not find SIOMAY.exe in build." }
           $appRoot = $exe.Directory.FullName
+          Copy-Item -Path release-source/.env -Destination (Join-Path $appRoot ".env") -Force
           $certifi = Get-ChildItem -Path $appRoot -Recurse -Directory -Filter certifi | Select-Object -First 1
           if ($null -eq $certifi) { throw "The packaged application does not contain certifi." }
           foreach ($relativePath in @("__init__.py", "core.py", "cacert.pem")) {
@@ -146,6 +152,10 @@ jobs:
           $soffice = Join-Path $appRoot "LibreOffice\program\soffice.com"
           if (-not (Test-Path $soffice -PathType Leaf)) {
             throw "The packaged application does not contain LibreOffice required for DOCX-to-PDF conversion."
+          }
+          $dotenv = Join-Path $appRoot ".env"
+          if (-not (Test-Path $dotenv -PathType Leaf) -or (Get-Content $dotenv -Raw) -notmatch '^SIOMAY_DRIVE_FOLDER_WORKER_URL=https://') {
+            throw "The packaged application does not contain a valid public Worker URL configuration."
           }
 
       - name: Package portable ZIP and checksum
