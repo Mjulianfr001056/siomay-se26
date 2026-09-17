@@ -4,12 +4,17 @@ Semua perubahan penting pada proyek SIOMAY didokumentasikan di berkas ini. Forma
 
 ---
 
-## [v2026.1.9] - 2026-09-10
+## [v2026.1.9] - 2026-09-17
 
 ### Ditambahkan
 - **Dokumen SPTD**: Menambahkan pilihan Surat Pernyataan Tidak Ditemukan beserta template Word dan format input Excel bawaan.
 - **Perhitungan Responden Otomatis**: Nilai `responden` dihitung dari jumlah keluarga ditambah jumlah usaha untuk setiap baris data mitra.
 - **Penggantian Placeholder Aman**: Placeholder SPTD yang terpisah pada beberapa *run* Word diganti tanpa mengubah format teks di sekitarnya; nilai hasil penggantian ditulis dengan warna hitam dan mempertahankan format tebal dari template.
+- **Folder Publik Google Drive**: Kolom bukti dukung BAPP Termin 1/2, BAST, dan placeholder gambar kustom kini dapat menerima satu tautan folder publik Google Drive dan menyisipkan seluruh gambar di dalamnya menurut urutan alami nama file.
+
+### Keamanan dan Distribusi
+- Daftar gambar folder dibaca melalui Cloudflare Worker SIOMAY sehingga Google API key tetap tersimpan sebagai secret di layanan dan tidak pernah dibundel ke aplikasi desktop.
+- Paket Windows kini memuat konfigurasi URL Worker produksi dan proses rilis memvalidasi konfigurasi tersebut sebelum ZIP dibuat.
 
 ### Diperbaiki
 - Nilai jumlah keluarga atau usaha yang kosong kini dinormalisasi menjadi nol, sedangkan nilai nonnumerik ditolak saat validasi.
@@ -17,6 +22,7 @@ Semua perubahan penting pada proyek SIOMAY didokumentasikan di berkas ini. Forma
 
 ### Keandalan dan Pengujian
 - Menambahkan pengujian validasi input, perhitungan responden, format DOCX, urutan katalog, routing, kelengkapan benchmark konversi, dan generasi tiga dokumen dari aset bawaan.
+- Menambahkan validasi respons layanan folder, dukungan paginasi Worker, filter tipe gambar, urutan nama file, penanganan galat Google Drive, serta pengujian integrasi folder pada generator dokumen.
 
 ---
 
