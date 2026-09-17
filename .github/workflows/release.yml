@@ -171,11 +171,27 @@ jobs:
           Copy-Item -Path (Join-Path $exe.Directory.FullName "*") -Destination package/SIOMAY -Recurse -Force
           Compress-Archive -Path package/SIOMAY -DestinationPath $zip -CompressionLevel Optimal
           $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
-          @(
+          $releaseNotesPath = "release-notes/$tag.md"
+          $releaseNotes = if (Test-Path $releaseNotesPath -PathType Leaf) {
+            (Get-Content $releaseNotesPath -Raw).TrimEnd()
+          } else {
+            "# SIOMAY $tag"
+          }
+          $previousTag = git tag --sort=-version:refname |
+            Where-Object { $_ -ne $tag } |
+            Select-Object -First 1
+          $notes = @(
+            $releaseNotes
+            ""
             "## Checksums"
             ""
             "- ${zip}: $hash"
-          ) | Set-Content -Path RELEASE_NOTES.md
+          )
+          if ($previousTag) {
+            $notes += ""
+            $notes += "**Full Changelog**: https://github.com/Mjulianfr001056/siomay-se26/compare/$previousTag...$tag"
+          }
+          $notes | Set-Content -Path RELEASE_NOTES.md
           "prerelease=$($tag.Contains('-').ToString().ToLower())" >> $env:GITHUB_OUTPUT
 
       - name: Create draft GitHub Release
@@ -183,7 +199,7 @@ jobs:
         with:
           draft: true
           prerelease: ${{ steps.package.outputs.prerelease }}
-          generate_release_notes: true
+          generate_release_notes: false
           body_path: RELEASE_NOTES.md
           files: |
             SIOMAY-*-windows.zip
